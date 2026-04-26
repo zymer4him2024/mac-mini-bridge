@@ -7,6 +7,10 @@ of main() with timing + outcome. Records auto-expire 30 days after start
 Failures here never crash the caller — Firestore unreachability is logged and
 swallowed. The local Telegram path is the source of truth for operator alerts;
 this is just the dashboard data feed.
+
+Multi-tenant: writes land at customers/{EMAIL2PPT_CUSTOMER_UID}/activity. The
+UID env var must be set (run migrate_to_multitenant.py to discover it). If it
+is unset, reports are skipped with a warning.
 """
 
 from __future__ import annotations
@@ -23,7 +27,7 @@ from google.api_core import exceptions as gax
 BASE_DIR = Path(__file__).parent.resolve()
 SERVICE_ACCOUNT = BASE_DIR / "firebase-service-account.json"
 FIRESTORE_DB_ID = os.environ.get("FIRESTORE_DATABASE_ID", "email2ppt")
-COLLECTION = "activity"
+CUSTOMER_UID = os.environ.get("EMAIL2PPT_CUSTOMER_UID", "").strip()
 TTL_DAYS = 30
 
 log = logging.getLogger("firestore_activity")
@@ -49,6 +53,13 @@ def report_run(
     error: str | None = None,
 ) -> None:
     """Write one activity record. Never raises."""
+    if not CUSTOMER_UID:
+        log.warning(
+            "EMAIL2PPT_CUSTOMER_UID not set; activity report skipped (%s)",
+            run_type,
+        )
+        return
+
     if status not in ("ok", "error"):
         log.warning("invalid status %r; coercing to error", status)
         status = "error"
@@ -73,7 +84,9 @@ def report_run(
 
     try:
         db = _client()
-        db.collection(COLLECTION).add(record)
+        db.collection("customers").document(CUSTOMER_UID).collection(
+            "activity"
+        ).add(record)
     except FileNotFoundError as exc:
         log.warning("activity report skipped: %s", exc)
     except gax.GoogleAPIError as exc:

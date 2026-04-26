@@ -35,8 +35,15 @@ AUTHORIZED_CHAT_ID = int(os.environ["AUTHORIZED_CHAT_ID"])
 SERVICE_ACCOUNT = BASE_DIR / "firebase-service-account.json"
 SENDERS_FILE = BASE_DIR / "priority_senders.txt"
 WATCHER_CONFIG = BASE_DIR / "watcher_config.json"
-DOC_PATH = ("config", "email2ppt")
 FIRESTORE_DB_ID = os.environ.get("FIRESTORE_DATABASE_ID", "email2ppt")
+CUSTOMER_UID = os.environ.get("EMAIL2PPT_CUSTOMER_UID", "").strip()
+if not CUSTOMER_UID:
+    print(
+        "FATAL: EMAIL2PPT_CUSTOMER_UID is not set. Run migrate_to_multitenant.py "
+        "and copy the printed UID into .env.",
+        file=sys.stderr,
+    )
+    sys.exit(1)
 
 DEFAULT_LOOKBACK = "1d"
 
@@ -85,13 +92,22 @@ def fetch_remote() -> dict | None:
     if not firebase_admin._apps:
         firebase_admin.initialize_app(credentials.Certificate(str(SERVICE_ACCOUNT)))
     db = firestore.client(database_id=FIRESTORE_DB_ID)
+    doc_ref = (
+        db.collection("customers")
+        .document(CUSTOMER_UID)
+        .collection("config")
+        .document("main")
+    )
     try:
-        snap = db.collection(DOC_PATH[0]).document(DOC_PATH[1]).get()
+        snap = doc_ref.get()
     except gax.GoogleAPIError as exc:
         log.warning("Firestore unreachable (%s); skipping run", exc)
         return None
     if not snap.exists:
-        log.warning("doc %s/%s does not exist; skipping run", *DOC_PATH)
+        log.warning(
+            "doc customers/%s/config/main does not exist; skipping run",
+            CUSTOMER_UID,
+        )
         return None
     return snap.to_dict() or {}
 
