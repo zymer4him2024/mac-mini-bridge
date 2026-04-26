@@ -58,6 +58,10 @@ logging.basicConfig(
 )
 log = logging.getLogger("bridge")
 
+# httpx logs full request URLs at INFO level, which leaks the Telegram bot
+# token in every getUpdates poll. Suppress to WARNING.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
 # OpenAI client pointed at local Ollama
 llm = OpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama-local")
 
