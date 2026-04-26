@@ -32,6 +32,7 @@ SERVICE_ACCOUNT = BASE_DIR / "firebase-service-account.json"
 SENDERS_FILE = BASE_DIR / "priority_senders.txt"
 WATCHER_CONFIG = BASE_DIR / "watcher_config.json"
 DOC_PATH = ("config", "email2ppt")
+FIRESTORE_DB_ID = os.environ.get("FIRESTORE_DATABASE_ID", "email2ppt")
 
 DEFAULT_LOOKBACK = "1d"
 
@@ -79,7 +80,7 @@ def fetch_remote() -> dict | None:
         sys.exit(1)
     if not firebase_admin._apps:
         firebase_admin.initialize_app(credentials.Certificate(str(SERVICE_ACCOUNT)))
-    db = firestore.client()
+    db = firestore.client(database_id=FIRESTORE_DB_ID)
     try:
         snap = db.collection(DOC_PATH[0]).document(DOC_PATH[1]).get()
     except gax.GoogleAPIError as exc:
