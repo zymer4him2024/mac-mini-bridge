@@ -26,8 +26,6 @@ from google.api_core import exceptions as gax
 
 BASE_DIR = Path(__file__).parent.resolve()
 SERVICE_ACCOUNT = BASE_DIR / "firebase-service-account.json"
-FIRESTORE_DB_ID = os.environ.get("FIRESTORE_DATABASE_ID", "email2ppt")
-CUSTOMER_UID = os.environ.get("EMAIL2PPT_CUSTOMER_UID", "").strip()
 TTL_DAYS = 30
 
 log = logging.getLogger("firestore_activity")
@@ -40,7 +38,8 @@ def _client():
         firebase_admin.initialize_app(
             credentials.Certificate(str(SERVICE_ACCOUNT))
         )
-    return firestore.client(database_id=FIRESTORE_DB_ID)
+    db_id = os.environ.get("FIRESTORE_DATABASE_ID", "email2ppt")
+    return firestore.client(database_id=db_id)
 
 
 def report_run(
@@ -53,7 +52,8 @@ def report_run(
     error: str | None = None,
 ) -> None:
     """Write one activity record. Never raises."""
-    if not CUSTOMER_UID:
+    customer_uid = os.environ.get("EMAIL2PPT_CUSTOMER_UID", "").strip()
+    if not customer_uid:
         log.warning(
             "EMAIL2PPT_CUSTOMER_UID not set; activity report skipped (%s)",
             run_type,
@@ -84,7 +84,7 @@ def report_run(
 
     try:
         db = _client()
-        db.collection("customers").document(CUSTOMER_UID).collection(
+        db.collection("customers").document(customer_uid).collection(
             "activity"
         ).add(record)
     except FileNotFoundError as exc:
