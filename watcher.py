@@ -39,7 +39,9 @@ BASE_DIR = Path(__file__).parent.resolve()
 OUTPUT_DIR = Path.home() / "email-pdfs"
 STATE_FILE = BASE_DIR / "watcher_state.json"
 SENDERS_FILE = BASE_DIR / "priority_senders.txt"
+WATCHER_CONFIG = BASE_DIR / "watcher_config.json"
 MAX_PROCESSED = 200
+DEFAULT_LOOKBACK = "1d"
 
 load_dotenv(BASE_DIR / ".env")
 
@@ -99,12 +101,22 @@ def load_priority_senders() -> list:
     return senders
 
 
+def _load_lookback() -> str:
+    if not WATCHER_CONFIG.exists():
+        return DEFAULT_LOOKBACK
+    try:
+        v = json.loads(WATCHER_CONFIG.read_text()).get("lookback", DEFAULT_LOOKBACK)
+    except (json.JSONDecodeError, OSError):
+        return DEFAULT_LOOKBACK
+    return v if isinstance(v, str) and v.strip() else DEFAULT_LOOKBACK
+
+
 def fetch_new_emails(senders: list) -> list:
     if not senders:
         return []
     service = get_gmail_service()
     or_clause = " OR ".join(f"from:{s}" for s in senders)
-    query = f"({or_clause}) newer_than:1d"
+    query = f"({or_clause}) newer_than:{_load_lookback()}"
     log.info(f"Gmail query: {query}")
     result = (
         service.users()

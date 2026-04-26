@@ -6,3 +6,5 @@ venv/
 __pycache__/
 priority_senders.txt
 watcher_state.json
+watcher_config.json
+firebase-service-account.json
