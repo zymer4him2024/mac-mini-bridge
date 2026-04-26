@@ -36,10 +36,10 @@ SERVICE_ACCOUNT = BASE_DIR / "firebase-service-account.json"
 SENDERS_FILE = BASE_DIR / "priority_senders.txt"
 WATCHER_CONFIG = BASE_DIR / "watcher_config.json"
 FIRESTORE_DB_ID = os.environ.get("FIRESTORE_DATABASE_ID", "email2ppt")
-CUSTOMER_UID = os.environ.get("EMAIL2PPT_CUSTOMER_UID", "").strip()
-if not CUSTOMER_UID:
+USER_UID = os.environ.get("EMAIL2PPT_USER_UID", "").strip()
+if not USER_UID:
     print(
-        "FATAL: EMAIL2PPT_CUSTOMER_UID is not set. Run migrate_to_multitenant.py "
+        "FATAL: EMAIL2PPT_USER_UID is not set. Run migrate_to_users.py "
         "and copy the printed UID into .env.",
         file=sys.stderr,
     )
@@ -93,8 +93,8 @@ def fetch_remote() -> dict | None:
         firebase_admin.initialize_app(credentials.Certificate(str(SERVICE_ACCOUNT)))
     db = firestore.client(database_id=FIRESTORE_DB_ID)
     doc_ref = (
-        db.collection("customers")
-        .document(CUSTOMER_UID)
+        db.collection("users")
+        .document(USER_UID)
         .collection("config")
         .document("main")
     )
@@ -105,8 +105,8 @@ def fetch_remote() -> dict | None:
         return None
     if not snap.exists:
         log.warning(
-            "doc customers/%s/config/main does not exist; skipping run",
-            CUSTOMER_UID,
+            "doc users/%s/config/main does not exist; skipping run",
+            USER_UID,
         )
         return None
     return snap.to_dict() or {}

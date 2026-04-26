@@ -8,9 +8,9 @@ Failures here never crash the caller — Firestore unreachability is logged and
 swallowed. The local Telegram path is the source of truth for operator alerts;
 this is just the dashboard data feed.
 
-Multi-tenant: writes land at customers/{EMAIL2PPT_CUSTOMER_UID}/activity. The
-UID env var must be set (run migrate_to_multitenant.py to discover it). If it
-is unset, reports are skipped with a warning.
+Multi-tenant: writes land at users/{EMAIL2PPT_USER_UID}/activity. The UID env
+var must be set (run migrate_to_users.py to discover it). If it is unset,
+reports are skipped with a warning.
 """
 
 from __future__ import annotations
@@ -52,10 +52,10 @@ def report_run(
     error: str | None = None,
 ) -> None:
     """Write one activity record. Never raises."""
-    customer_uid = os.environ.get("EMAIL2PPT_CUSTOMER_UID", "").strip()
-    if not customer_uid:
+    user_uid = os.environ.get("EMAIL2PPT_USER_UID", "").strip()
+    if not user_uid:
         log.warning(
-            "EMAIL2PPT_CUSTOMER_UID not set; activity report skipped (%s)",
+            "EMAIL2PPT_USER_UID not set; activity report skipped (%s)",
             run_type,
         )
         return
@@ -84,7 +84,7 @@ def report_run(
 
     try:
         db = _client()
-        db.collection("customers").document(customer_uid).collection(
+        db.collection("users").document(user_uid).collection(
             "activity"
         ).add(record)
     except FileNotFoundError as exc:
