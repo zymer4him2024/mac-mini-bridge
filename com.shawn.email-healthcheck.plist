@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.shawn.email-healthcheck</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/shawnlee/telegram-bridge/venv/bin/python</string>
+        <string>/Users/shawnlee/telegram-bridge/healthcheck.py</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/shawnlee/telegram-bridge</string>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key>
+        <integer>0</integer>
+        <key>Hour</key>
+        <integer>10</integer>
+        <key>Minute</key>
+        <integer>23</integer>
+    </dict>
+    <key>RunAtLoad</key>
+    <false/>
+    <key>StandardOutPath</key>
+    <string>/Users/shawnlee/telegram-bridge/healthcheck.stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/shawnlee/telegram-bridge/healthcheck.stderr.log</string>
+</dict>
+</plist>
