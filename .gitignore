@@ -5,3 +5,4 @@ venv/
 *.log
 __pycache__/
 priority_senders.txt
+watcher_state.json
