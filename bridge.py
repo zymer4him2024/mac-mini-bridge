@@ -371,6 +371,35 @@ async def trigger_digest(update: Update, _: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Couldn't start digest: {e}")
 
 
+async def trigger_ppt(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Generate a PowerPoint deck from emails matching a Gmail query."""
+    if not authorized(update):
+        return
+    query = " ".join(ctx.args).strip() if ctx.args else ""
+    if not query:
+        await update.message.reply_text(
+            "Usage: /ppt <gmail-query>\nExample: /ppt from:investor newer_than:7d"
+        )
+        return
+    ppt_path = BASE_DIR / "ppt.py"
+    python_path = BASE_DIR / "venv" / "bin" / "python"
+    if not ppt_path.exists():
+        await update.message.reply_text("PPT script not found at " + str(ppt_path))
+        return
+    try:
+        subprocess.Popen(
+            [str(python_path), str(ppt_path), query],
+            cwd=str(BASE_DIR),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        log.info(f"Triggered ppt.py with query: {query}")
+        await update.message.reply_text(f"📊 Generating PPT for: {query}")
+    except Exception as e:
+        log.exception("Failed to launch ppt")
+        await update.message.reply_text(f"Couldn't start PPT: {e}")
+
+
 async def handle_message(update: Update, _: ContextTypes.DEFAULT_TYPE):
     if not authorized(update):
         log.warning(f"Unauthorized message from chat_id={update.effective_chat.id}")
@@ -404,6 +433,7 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("reset", reset))
     app.add_handler(CommandHandler("push", trigger_digest))
+    app.add_handler(CommandHandler("ppt", trigger_ppt))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.run_polling(drop_pending_updates=True)
 

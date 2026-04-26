@@ -1,0 +1,374 @@
+#!/usr/bin/env python3
+"""
+Generate a PowerPoint deck from emails matching a Gmail search query.
+
+CLI: python ppt.py "<gmail-query>"
+Example: python ppt.py "from:investor newer_than:7d"
+
+Pipeline:
+  1. Fetch up to 25 emails matching the query.
+  2. Summarize each via local Ollama (JSON-mode).
+  3. Generate cross-email "Top 3" summary.
+  4. Build .pptx and save to ~/email-ppts/YYYY-MM-DD-HHMMSS.pptx.
+  5. Send Telegram completion ping.
+"""
+
+import os
+import sys
+import json
+import base64
+import logging
+from pathlib import Path
+from datetime import datetime
+import requests
+
+from dotenv import load_dotenv
+from openai import OpenAI
+from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
+from googleapiclient.discovery import build
+
+from pptx import Presentation
+from pptx.util import Inches, Pt
+from pptx.dml.color import RGBColor
+from pptx.enum.text import PP_ALIGN
+
+# ---------- Config ----------
+BASE_DIR = Path(__file__).parent.resolve()
+OUTPUT_DIR = Path.home() / "email-ppts"
+
+load_dotenv(BASE_DIR / ".env")
+
+TELEGRAM_BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
+AUTHORIZED_CHAT_ID = int(os.environ["AUTHORIZED_CHAT_ID"])
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.1:8b")
+
+GMAIL_TOKEN_PATH = BASE_DIR / "gmail_token.json"
+GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
+
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+LOG_PATH = BASE_DIR / "ppt.log"
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+    handlers=[logging.FileHandler(LOG_PATH), logging.StreamHandler()],
+)
+log = logging.getLogger("ppt")
+
+
+# ---------- Gmail helpers ----------
+def get_gmail_service():
+    creds = Credentials.from_authorized_user_file(str(GMAIL_TOKEN_PATH), GMAIL_SCOPES)
+    if creds.expired and creds.refresh_token:
+        creds.refresh(Request())
+        GMAIL_TOKEN_PATH.write_text(creds.to_json())
+    return build("gmail", "v1", credentials=creds)
+
+
+def _extract_body(payload) -> str:
+    if payload.get("body", {}).get("data"):
+        return base64.urlsafe_b64decode(payload["body"]["data"]).decode(
+            "utf-8", errors="replace"
+        )
+    for part in payload.get("parts", []):
+        if part.get("mimeType") == "text/plain" and part["body"].get("data"):
+            return base64.urlsafe_b64decode(part["body"]["data"]).decode(
+                "utf-8", errors="replace"
+            )
+    for part in payload.get("parts", []):
+        text = _extract_body(part)
+        if text:
+            return text
+    return ""
+
+
+def fetch_emails(query: str, max_results: int = 25) -> list:
+    service = get_gmail_service()
+    log.info(f"Gmail query: {query}")
+    result = (
+        service.users()
+        .messages()
+        .list(userId="me", q=query, maxResults=max_results)
+        .execute()
+    )
+    messages = result.get("messages", [])
+    emails = []
+    for m in messages:
+        msg = (
+            service.users()
+            .messages()
+            .get(userId="me", id=m["id"], format="full")
+            .execute()
+        )
+        headers = {h["name"]: h["value"] for h in msg["payload"]["headers"]}
+        body = _extract_body(msg["payload"])[:4000]
+        emails.append(
+            {
+                "from": headers.get("From", ""),
+                "subject": headers.get("Subject", ""),
+                "date": headers.get("Date", ""),
+                "snippet": msg.get("snippet", ""),
+                "body": body,
+            }
+        )
+    return emails
+
+
+# ---------- LLM summarization ----------
+EMAIL_PROMPT = """You are Shawn's executive assistant. Summarize the email below into structured JSON ONLY (no prose, no markdown fences).
+
+Required JSON shape:
+{{
+  "context": ["1-2 short bullets giving who they are / why writing"],
+  "key_points": ["3-6 bullets of specific facts, claims, requests, numbers, quotes from the email"],
+  "asks": ["bullets of what they want from Shawn, or one item 'FYI only - no action'"],
+  "suggested_response": "one short line e.g. 'Reply Friday', 'No reply needed'",
+  "urgency": "low" | "med" | "high"
+}}
+
+Style:
+- Specific over generic. Pull real numbers, names, dates, dollar figures.
+- Skip greetings, signatures, quoted-thread history.
+- Output ONLY the JSON object.
+
+EMAIL:
+From: {from_}
+Subject: {subject}
+Date: {date}
+
+{body}
+"""
+
+
+def _strip_fences(text: str) -> str:
+    text = text.strip()
+    if text.startswith("```"):
+        parts = text.split("```")
+        if len(parts) >= 2:
+            text = parts[1]
+            if text.startswith("json"):
+                text = text[4:]
+            text = text.strip()
+    return text
+
+
+def summarize_email(client: OpenAI, email: dict) -> dict:
+    prompt = EMAIL_PROMPT.format(
+        from_=email["from"],
+        subject=email["subject"],
+        date=email["date"],
+        body=email["body"],
+    )
+    resp = client.chat.completions.create(
+        model=OLLAMA_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3,
+    )
+    text = _strip_fences(resp.choices[0].message.content or "")
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        log.warning(f"JSON parse failed for {email['subject']!r}; using fallback")
+        data = {
+            "context": [],
+            "key_points": [text[:400]] if text else [],
+            "asks": [],
+            "suggested_response": "",
+            "urgency": "low",
+        }
+    return data
+
+
+def top3_summary(client: OpenAI, summarized: list) -> list:
+    blocks = []
+    for s in summarized:
+        kp = "; ".join(s["data"].get("key_points", [])[:3])
+        blocks.append(f"- {s['email']['from']}: {s['email']['subject']} | key: {kp}")
+    prompt = (
+        "Given the email summaries below, return EXACTLY 3 bullets capturing the "
+        "most important takeaways across all emails. Output ONLY a JSON array of "
+        "3 strings. No prose, no fences.\n\n" + "\n".join(blocks)
+    )
+    resp = client.chat.completions.create(
+        model=OLLAMA_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3,
+    )
+    text = _strip_fences(resp.choices[0].message.content or "")
+    try:
+        items = json.loads(text)
+        if isinstance(items, list) and items:
+            return [str(x) for x in items[:3]]
+    except json.JSONDecodeError:
+        pass
+    return [s["email"]["subject"] or s["email"]["from"] for s in summarized[:3]]
+
+
+# ---------- PPTX builder ----------
+URGENCY_COLOR = {
+    "low": RGBColor(0x34, 0xC7, 0x59),
+    "med": RGBColor(0xFF, 0x9F, 0x0A),
+    "high": RGBColor(0xFF, 0x3B, 0x30),
+}
+
+
+def _add_text(
+    slide, text, left, top, width, height, size,
+    bold=False, color=None, align=None,
+):
+    tb = slide.shapes.add_textbox(left, top, width, height)
+    tf = tb.text_frame
+    tf.word_wrap = True
+    p = tf.paragraphs[0]
+    if align is not None:
+        p.alignment = align
+    run = p.add_run()
+    run.text = text
+    run.font.size = Pt(size)
+    run.font.bold = bold
+    if color is not None:
+        run.font.color.rgb = color
+    return tb
+
+
+def _short_sender(from_field: str) -> str:
+    if "<" in from_field:
+        name = from_field.split("<")[0].strip().strip('"')
+        return name or from_field
+    return from_field
+
+
+def build_deck(query: str, top3: list, summarized: list, run_at: datetime) -> Presentation:
+    prs = Presentation()
+    prs.slide_width = Inches(13.333)
+    prs.slide_height = Inches(7.5)
+    blank = prs.slide_layouts[6]
+
+    # Title
+    s1 = prs.slides.add_slide(blank)
+    _add_text(s1, "Email Digest", Inches(0.6), Inches(2.4), Inches(12), Inches(1.4), 54, bold=True)
+    _add_text(s1, run_at.strftime("%A, %B %d, %Y"), Inches(0.6), Inches(3.8), Inches(12), Inches(0.6), 24)
+    _add_text(
+        s1, f"Query: {query}",
+        Inches(0.6), Inches(4.5), Inches(12), Inches(0.6),
+        16, color=RGBColor(0x86, 0x86, 0x8A),
+    )
+
+    # Top 3
+    s2 = prs.slides.add_slide(blank)
+    _add_text(s2, "Top 3 Things to Know", Inches(0.6), Inches(0.5), Inches(12), Inches(1), 36, bold=True)
+    for i, item in enumerate(top3):
+        _add_text(s2, f"• {item}", Inches(0.8), Inches(2.0 + 0.9 * i), Inches(12), Inches(1), 22)
+
+    # Per email
+    for s in summarized:
+        e = s["email"]
+        d = s["data"]
+        slide = prs.slides.add_slide(blank)
+
+        _add_text(slide, _short_sender(e["from"]), Inches(0.6), Inches(0.4), Inches(11), Inches(0.7), 28, bold=True)
+        _add_text(slide, e["subject"], Inches(0.6), Inches(1.0), Inches(11), Inches(0.6), 16, color=RGBColor(0x48, 0x48, 0x4A))
+
+        urgency = (d.get("urgency") or "low").lower()
+        if urgency not in URGENCY_COLOR:
+            urgency = "low"
+        _add_text(
+            slide, urgency.upper(),
+            Inches(11.5), Inches(0.4), Inches(1.3), Inches(0.5),
+            14, bold=True, color=URGENCY_COLOR[urgency], align=PP_ALIGN.RIGHT,
+        )
+
+        y = 1.8
+        for label, key, max_items in [
+            ("Context", "context", 2),
+            ("Key Points", "key_points", 6),
+            ("Asks / Actions", "asks", 4),
+        ]:
+            items = d.get(key) or []
+            if not items:
+                continue
+            _add_text(slide, label, Inches(0.6), Inches(y), Inches(11), Inches(0.4), 16, bold=True)
+            y += 0.45
+            for b in items[:max_items]:
+                _add_text(slide, f"• {b}", Inches(0.8), Inches(y), Inches(11), Inches(0.4), 14)
+                y += 0.35
+            y += 0.2
+
+        if d.get("suggested_response"):
+            _add_text(
+                slide, f"→ {d['suggested_response']}",
+                Inches(0.6), Inches(6.6), Inches(12), Inches(0.6),
+                14, bold=True, color=RGBColor(0x00, 0x71, 0xE3),
+            )
+
+    return prs
+
+
+# ---------- Telegram ----------
+def send_telegram(text: str):
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    try:
+        r = requests.post(
+            url,
+            json={
+                "chat_id": AUTHORIZED_CHAT_ID,
+                "text": text,
+                "disable_web_page_preview": True,
+            },
+            timeout=15,
+        )
+        r.raise_for_status()
+    except Exception as e:
+        log.error(f"Telegram send failed: {e}")
+
+
+# ---------- Main ----------
+def main():
+    if len(sys.argv) < 2 or not sys.argv[1].strip():
+        print('usage: python ppt.py "<gmail-query>"', file=sys.stderr)
+        sys.exit(2)
+
+    query = sys.argv[1].strip()
+    log.info("=" * 60)
+    log.info(f"Starting PPT generation: {query}")
+    run_at = datetime.now()
+
+    emails = fetch_emails(query)
+    log.info(f"Matched emails: {len(emails)}")
+
+    if not emails:
+        send_telegram(f"📭 PPT skipped — no emails matched: {query}")
+        return
+
+    client = OpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama-local")
+
+    summarized = []
+    for e in emails:
+        log.info(f"Summarizing: {e['subject'][:60]}")
+        data = summarize_email(client, e)
+        summarized.append({"email": e, "data": data})
+
+    log.info("Generating Top 3")
+    top3 = top3_summary(client, summarized)
+
+    prs = build_deck(query, top3, summarized, run_at)
+    filename = run_at.strftime("%Y-%m-%d-%H%M%S") + ".pptx"
+    out_path = OUTPUT_DIR / filename
+    prs.save(str(out_path))
+    log.info(f"Saved: {out_path}")
+
+    send_telegram(f"📊 PPT saved: {filename} ({len(emails)} emails)\n{out_path}")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as e:
+        log.exception("PPT generation failed")
+        try:
+            send_telegram(f"⚠️ PPT failed: {e}\nSee {LOG_PATH}")
+        except Exception:
+            pass
+        raise
