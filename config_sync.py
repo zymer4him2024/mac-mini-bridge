@@ -13,6 +13,8 @@ import os
 import sys
 import json
 import logging
+import traceback
+from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
@@ -21,6 +23,8 @@ from dotenv import load_dotenv
 import firebase_admin
 from firebase_admin import credentials, firestore
 from google.api_core import exceptions as gax
+
+from firestore_activity import report_run
 
 BASE_DIR = Path(__file__).parent.resolve()
 load_dotenv(BASE_DIR / ".env")
@@ -116,40 +120,57 @@ def write_lookback(lookback: str) -> None:
 
 
 def main() -> None:
-    log.info("=" * 60)
-    log.info("config_sync starting")
+    started = datetime.now(timezone.utc)
+    try:
+        log.info("=" * 60)
+        log.info("config_sync starting")
 
-    doc = fetch_remote()
-    if doc is None:
-        return
-    remote_senders, remote_lookback = normalize_remote(doc)
-    local_senders = sorted(set(s.lower() for s in read_local_senders()))
-    local_lookback = read_local_lookback()
+        doc = fetch_remote()
+        if doc is None:
+            return
+        remote_senders, remote_lookback = normalize_remote(doc)
+        local_senders = sorted(set(s.lower() for s in read_local_senders()))
+        local_lookback = read_local_lookback()
 
-    diffs: list[str] = []
-    if remote_senders != local_senders:
-        added = set(remote_senders) - set(local_senders)
-        removed = set(local_senders) - set(remote_senders)
-        write_senders(remote_senders)
-        diffs.append(f"senders: +{len(added)} -{len(removed)} (now {len(remote_senders)})")
-        log.info("senders updated: added=%s removed=%s", sorted(added), sorted(removed))
+        diffs: list[str] = []
+        if remote_senders != local_senders:
+            added = set(remote_senders) - set(local_senders)
+            removed = set(local_senders) - set(remote_senders)
+            write_senders(remote_senders)
+            diffs.append(f"senders: +{len(added)} -{len(removed)} (now {len(remote_senders)})")
+            log.info("senders updated: added=%s removed=%s", sorted(added), sorted(removed))
 
-    if remote_lookback != local_lookback:
-        write_lookback(remote_lookback)
-        diffs.append(f"lookback: {local_lookback} → {remote_lookback}")
-        log.info("lookback updated: %s → %s", local_lookback, remote_lookback)
+        if remote_lookback != local_lookback:
+            write_lookback(remote_lookback)
+            diffs.append(f"lookback: {local_lookback} → {remote_lookback}")
+            log.info("lookback updated: %s → %s", local_lookback, remote_lookback)
 
-    initial = not WATCHER_CONFIG.exists() or not SENDERS_FILE.exists()
-    if initial and not diffs:
-        write_senders(remote_senders)
-        write_lookback(remote_lookback)
-        diffs.append("initial sync")
+        initial = not WATCHER_CONFIG.exists() or not SENDERS_FILE.exists()
+        if initial and not diffs:
+            write_senders(remote_senders)
+            write_lookback(remote_lookback)
+            diffs.append("initial sync")
 
-    if diffs:
-        send_telegram("⚙️ email2ppt config synced\n" + "\n".join(diffs))
-        log.info("diffs applied: %s", diffs)
-    else:
-        log.info("no changes")
+        if diffs:
+            send_telegram("⚙️ email2ppt config synced\n" + "\n".join(diffs))
+            log.info("diffs applied: %s", diffs)
+            report_run(
+                "config_sync",
+                "ok",
+                started_at=started,
+                outputs=diffs,
+            )
+        else:
+            log.info("no changes")
+            # Silent polls don't get reported; activity feed stays useful.
+    except Exception:
+        report_run(
+            "config_sync",
+            "error",
+            started_at=started,
+            error=traceback.format_exc(),
+        )
+        raise
 
 
 if __name__ == "__main__":

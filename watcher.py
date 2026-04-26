@@ -18,9 +18,12 @@ import json
 import base64
 import logging
 import re
+import traceback
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 import requests
+
+from firestore_activity import report_run
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -331,61 +334,86 @@ def _sender_slug(from_field: str) -> str:
 
 
 def main():
-    log.info("=" * 60)
-    log.info("Watcher run starting")
+    started = datetime.now(timezone.utc)
+    outputs: list[str] = []
+    new_count = 0
+    try:
+        log.info("=" * 60)
+        log.info("Watcher run starting")
 
-    senders = load_priority_senders()
-    if not senders:
-        log.warning("No priority senders configured")
-        return
+        senders = load_priority_senders()
+        if not senders:
+            log.warning("No priority senders configured")
+            report_run("watcher", "ok", started_at=started, email_count=0)
+            return
 
-    log.info(f"Priority senders ({len(senders)}): {senders}")
+        log.info(f"Priority senders ({len(senders)}): {senders}")
 
-    state = load_state()
-    seen_ids = list(state.get("processed_ids", []))
-    seen = set(seen_ids)
+        state = load_state()
+        seen_ids = list(state.get("processed_ids", []))
+        seen = set(seen_ids)
 
-    emails = fetch_new_emails(senders)
-    log.info(f"Matching emails (last 24h): {len(emails)}")
+        emails = fetch_new_emails(senders)
+        log.info(f"Matching emails (last 24h): {len(emails)}")
 
-    new_emails = [e for e in emails if e["id"] not in seen]
-    log.info(f"New (not yet processed): {len(new_emails)}")
+        new_emails = [e for e in emails if e["id"] not in seen]
+        new_count = len(new_emails)
+        log.info(f"New (not yet processed): {new_count}")
 
-    if not new_emails:
-        return
+        if not new_emails:
+            report_run("watcher", "ok", started_at=started, email_count=0)
+            return
 
-    client = OpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama-local")
+        client = OpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama-local")
 
-    for email in new_emails:
-        try:
-            send_telegram(f"📬 New from {email['from']}\n{email['subject']}")
+        for email in new_emails:
+            try:
+                send_telegram(f"📬 New from {email['from']}\n{email['subject']}")
 
-            log.info(f"Summarizing: {email['subject'][:60]}")
-            summary = summarize_email(client, email)
+                log.info(f"Summarizing: {email['subject'][:60]}")
+                summary = summarize_email(client, email)
 
-            run_at = datetime.now()
-            pdf_name = (
-                run_at.strftime("%Y-%m-%d-%H%M%S")
-                + "-" + _sender_slug(email["from"]) + ".pdf"
-            )
-            pdf_path = OUTPUT_DIR / pdf_name
-            build_pdf(email, summary, pdf_path)
-            log.info(f"PDF saved: {pdf_path}")
+                run_at = datetime.now()
+                pdf_name = (
+                    run_at.strftime("%Y-%m-%d-%H%M%S")
+                    + "-" + _sender_slug(email["from"]) + ".pdf"
+                )
+                pdf_path = OUTPUT_DIR / pdf_name
+                build_pdf(email, summary, pdf_path)
+                log.info(f"PDF saved: {pdf_path}")
+                outputs.append(pdf_name)
 
-            urg = (summary.get("urgency") or "low").upper()
-            caption = f"{email['subject']}\nUrgency: {urg}"
-            send_telegram_document(pdf_path, caption)
+                urg = (summary.get("urgency") or "low").upper()
+                caption = f"{email['subject']}\nUrgency: {urg}"
+                send_telegram_document(pdf_path, caption)
 
-            seen_ids.append(email["id"])
-            seen.add(email["id"])
-        except Exception as e:
-            log.exception(f"Failed processing {email['id']}: {e}")
-            # Don't add to seen — retry next run
+                seen_ids.append(email["id"])
+                seen.add(email["id"])
+            except Exception as e:
+                log.exception(f"Failed processing {email['id']}: {e}")
+                # Don't add to seen — retry next run
 
-    if len(seen_ids) > MAX_PROCESSED:
-        seen_ids = seen_ids[-MAX_PROCESSED:]
-    save_state(seen_ids)
-    log.info(f"State saved ({len(seen_ids)} ids)")
+        if len(seen_ids) > MAX_PROCESSED:
+            seen_ids = seen_ids[-MAX_PROCESSED:]
+        save_state(seen_ids)
+        log.info(f"State saved ({len(seen_ids)} ids)")
+        report_run(
+            "watcher",
+            "ok",
+            started_at=started,
+            email_count=new_count,
+            outputs=outputs,
+        )
+    except Exception:
+        report_run(
+            "watcher",
+            "error",
+            started_at=started,
+            email_count=new_count,
+            outputs=outputs,
+            error=traceback.format_exc(),
+        )
+        raise
 
 
 if __name__ == "__main__":

@@ -15,9 +15,12 @@ Designed to be run by launchd at 7:00 AM daily.
 import os
 import base64
 import logging
+import traceback
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 import requests
+
+from firestore_activity import report_run
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -274,51 +277,83 @@ def send_telegram(text: str):
 
 # ---------- Main ----------
 def main():
-    log.info("=" * 60)
-    log.info("Starting daily email digest")
-    run_at = datetime.now()
+    started = datetime.now(timezone.utc)
+    outputs: list[str] = []
+    email_count = 0
+    try:
+        log.info("=" * 60)
+        log.info("Starting daily email digest")
+        run_at = datetime.now()
 
-    senders = load_priority_senders()
-    if not senders:
-        msg = (
-            f"No priority senders configured.\n"
-            f"Edit: {SENDERS_FILE}"
+        senders = load_priority_senders()
+        if not senders:
+            msg = (
+                f"No priority senders configured.\n"
+                f"Edit: {SENDERS_FILE}"
+            )
+            log.warning(msg)
+            send_telegram(f"📭 Daily digest skipped — no senders configured.\n\n{msg}")
+            report_run("digest", "ok", started_at=started, email_count=0)
+            return
+
+        log.info(f"Priority senders ({len(senders)}): {senders}")
+
+        emails = fetch_priority_emails(senders)
+        email_count = len(emails)
+        log.info(f"Matching emails in last 24h: {email_count}")
+
+        if not emails:
+            no_email_md = (
+                f"## No priority emails today\n\n"
+                f"No emails received from your {len(senders)} priority senders "
+                f"in the last 24 hours. Quiet morning.\n"
+            )
+            md_path = save_markdown(no_email_md, run_at, 0)
+            outputs.append(md_path.name)
+            send_telegram(
+                f"📭 Daily digest — {run_at.strftime('%a %b %d')}\n"
+                f"No priority emails in the last 24 hours."
+            )
+            report_run(
+                "digest",
+                "ok",
+                started_at=started,
+                email_count=0,
+                outputs=outputs,
+            )
+            return
+
+        short, full = summarize_emails(emails)
+
+        md_path = save_markdown(full, run_at, len(emails))
+        log.info(f"Saved digest to {md_path}")
+        outputs.append(md_path.name)
+
+        telegram_msg = (
+            f"📬 Daily Digest — {run_at.strftime('%a %b %d')}\n"
+            f"{len(emails)} priority emails · saved to {md_path.name}\n"
+            f"\n"
+            f"{short}"
         )
-        log.warning(msg)
-        send_telegram(f"📭 Daily digest skipped — no senders configured.\n\n{msg}")
-        return
-
-    log.info(f"Priority senders ({len(senders)}): {senders}")
-
-    emails = fetch_priority_emails(senders)
-    log.info(f"Matching emails in last 24h: {len(emails)}")
-
-    if not emails:
-        no_email_md = (
-            f"## No priority emails today\n\n"
-            f"No emails received from your {len(senders)} priority senders "
-            f"in the last 24 hours. Quiet morning.\n"
+        send_telegram(telegram_msg)
+        log.info("Digest sent to Telegram")
+        report_run(
+            "digest",
+            "ok",
+            started_at=started,
+            email_count=email_count,
+            outputs=outputs,
         )
-        save_markdown(no_email_md, run_at, 0)
-        send_telegram(
-            f"📭 Daily digest — {run_at.strftime('%a %b %d')}\n"
-            f"No priority emails in the last 24 hours."
+    except Exception:
+        report_run(
+            "digest",
+            "error",
+            started_at=started,
+            email_count=email_count,
+            outputs=outputs,
+            error=traceback.format_exc(),
         )
-        return
-
-    short, full = summarize_emails(emails)
-
-    md_path = save_markdown(full, run_at, len(emails))
-    log.info(f"Saved digest to {md_path}")
-
-    telegram_msg = (
-        f"📬 Daily Digest — {run_at.strftime('%a %b %d')}\n"
-        f"{len(emails)} priority emails · saved to {md_path.name}\n"
-        f"\n"
-        f"{short}"
-    )
-    send_telegram(telegram_msg)
-    log.info("Digest sent to Telegram")
+        raise
 
 
 if __name__ == "__main__":

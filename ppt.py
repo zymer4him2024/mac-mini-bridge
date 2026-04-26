@@ -18,9 +18,12 @@ import sys
 import json
 import base64
 import logging
+import traceback
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 import requests
+
+from firestore_activity import report_run
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -326,40 +329,66 @@ def send_telegram(text: str):
 
 # ---------- Main ----------
 def main():
-    if len(sys.argv) < 2 or not sys.argv[1].strip():
-        print('usage: python ppt.py "<gmail-query>"', file=sys.stderr)
-        sys.exit(2)
+    started = datetime.now(timezone.utc)
+    outputs: list[str] = []
+    email_count = 0
+    try:
+        if len(sys.argv) < 2 or not sys.argv[1].strip():
+            print('usage: python ppt.py "<gmail-query>"', file=sys.stderr)
+            sys.exit(2)
 
-    query = sys.argv[1].strip()
-    log.info("=" * 60)
-    log.info(f"Starting PPT generation: {query}")
-    run_at = datetime.now()
+        query = sys.argv[1].strip()
+        log.info("=" * 60)
+        log.info(f"Starting PPT generation: {query}")
+        run_at = datetime.now()
 
-    emails = fetch_emails(query)
-    log.info(f"Matched emails: {len(emails)}")
+        emails = fetch_emails(query)
+        email_count = len(emails)
+        log.info(f"Matched emails: {email_count}")
 
-    if not emails:
-        send_telegram(f"📭 PPT skipped — no emails matched: {query}")
-        return
+        if not emails:
+            send_telegram(f"📭 PPT skipped — no emails matched: {query}")
+            report_run("ppt", "ok", started_at=started, email_count=0)
+            return
 
-    client = OpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama-local")
+        client = OpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama-local")
 
-    summarized = []
-    for e in emails:
-        log.info(f"Summarizing: {e['subject'][:60]}")
-        data = summarize_email(client, e)
-        summarized.append({"email": e, "data": data})
+        summarized = []
+        for e in emails:
+            log.info(f"Summarizing: {e['subject'][:60]}")
+            data = summarize_email(client, e)
+            summarized.append({"email": e, "data": data})
 
-    log.info("Generating Top 3")
-    top3 = top3_summary(client, summarized)
+        log.info("Generating Top 3")
+        top3 = top3_summary(client, summarized)
 
-    prs = build_deck(query, top3, summarized, run_at)
-    filename = run_at.strftime("%Y-%m-%d-%H%M%S") + ".pptx"
-    out_path = OUTPUT_DIR / filename
-    prs.save(str(out_path))
-    log.info(f"Saved: {out_path}")
+        prs = build_deck(query, top3, summarized, run_at)
+        filename = run_at.strftime("%Y-%m-%d-%H%M%S") + ".pptx"
+        out_path = OUTPUT_DIR / filename
+        prs.save(str(out_path))
+        log.info(f"Saved: {out_path}")
+        outputs.append(filename)
 
-    send_telegram(f"📊 PPT saved: {filename} ({len(emails)} emails)\n{out_path}")
+        send_telegram(f"📊 PPT saved: {filename} ({email_count} emails)\n{out_path}")
+        report_run(
+            "ppt",
+            "ok",
+            started_at=started,
+            email_count=email_count,
+            outputs=outputs,
+        )
+    except SystemExit:
+        raise
+    except Exception:
+        report_run(
+            "ppt",
+            "error",
+            started_at=started,
+            email_count=email_count,
+            outputs=outputs,
+            error=traceback.format_exc(),
+        )
+        raise
 
 
 if __name__ == "__main__":
