@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 import requests
 
 from firestore_activity import report_run
+from firestore_alerts import send_alert, send_document
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -50,6 +51,7 @@ load_dotenv(BASE_DIR / ".env")
 
 TELEGRAM_BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 AUTHORIZED_CHAT_ID = int(os.environ["AUTHORIZED_CHAT_ID"])
+USER_UID = os.environ.get("EMAIL2PPT_USER_UID", "").strip()
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.1:8b")
 
@@ -293,36 +295,13 @@ def build_pdf(email: dict, summary: dict, out_path: Path):
 
 
 # ---------- Telegram ----------
+# Routes via firestore_alerts: customer's own bot if linked, else env shared bot.
 def send_telegram(text: str):
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    try:
-        r = requests.post(
-            url,
-            json={
-                "chat_id": AUTHORIZED_CHAT_ID,
-                "text": text,
-                "disable_web_page_preview": True,
-            },
-            timeout=15,
-        )
-        r.raise_for_status()
-    except Exception as e:
-        log.error(f"Telegram text failed: {e}")
+    send_alert(USER_UID, text)
 
 
 def send_telegram_document(path: Path, caption: str):
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendDocument"
-    try:
-        with open(path, "rb") as f:
-            r = requests.post(
-                url,
-                data={"chat_id": AUTHORIZED_CHAT_ID, "caption": caption[:1000]},
-                files={"document": (path.name, f, "application/pdf")},
-                timeout=60,
-            )
-            r.raise_for_status()
-    except Exception as e:
-        log.error(f"Telegram document failed: {e}")
+    send_document(USER_UID, path, caption)
 
 
 # ---------- Main ----------

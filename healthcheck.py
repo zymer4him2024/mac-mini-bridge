@@ -6,14 +6,16 @@ import re
 import json
 from pathlib import Path
 from datetime import datetime, timedelta
-import requests
 from dotenv import load_dotenv
+
+from firestore_alerts import send_alert
 
 BASE_DIR = Path(__file__).parent.resolve()
 load_dotenv(BASE_DIR / ".env")
 
 TELEGRAM_BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 AUTHORIZED_CHAT_ID = int(os.environ["AUTHORIZED_CHAT_ID"])
+USER_UID = os.environ.get("EMAIL2PPT_USER_UID", "").strip()
 
 STATE_FILE = BASE_DIR / "watcher_state.json"
 LOG_FILE = BASE_DIR / "watcher.stderr.log"
@@ -23,12 +25,8 @@ TS_RE = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})")
 
 
 def send_telegram(text: str) -> None:
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    requests.post(
-        url,
-        data={"chat_id": AUTHORIZED_CHAT_ID, "text": text[:4000]},
-        timeout=30,
-    )
+    # Routes via firestore_alerts: customer's own bot if linked, else env shared bot.
+    send_alert(USER_UID, text)
 
 
 def state_summary() -> str:

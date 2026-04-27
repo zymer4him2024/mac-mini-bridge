@@ -17,7 +17,6 @@ import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
-import requests
 from dotenv import load_dotenv
 
 import firebase_admin
@@ -25,6 +24,7 @@ from firebase_admin import credentials, firestore
 from google.api_core import exceptions as gax
 
 from firestore_activity import report_run
+from firestore_alerts import send_alert
 
 BASE_DIR = Path(__file__).parent.resolve()
 load_dotenv(BASE_DIR / ".env")
@@ -57,12 +57,8 @@ log = logging.getLogger("config_sync")
 
 
 def send_telegram(text: str) -> None:
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    requests.post(
-        url,
-        data={"chat_id": AUTHORIZED_CHAT_ID, "text": text[:4000]},
-        timeout=30,
-    )
+    # Routes via firestore_alerts: customer's own bot if linked, else env shared bot.
+    send_alert(USER_UID, text)
 
 
 def read_local_senders() -> list[str]:

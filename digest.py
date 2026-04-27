@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 import requests
 
 from firestore_activity import report_run
+from firestore_alerts import send_alert
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -37,6 +38,7 @@ load_dotenv(BRIDGE_DIR / ".env")
 
 TELEGRAM_BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 AUTHORIZED_CHAT_ID = int(os.environ["AUTHORIZED_CHAT_ID"])
+USER_UID = os.environ.get("EMAIL2PPT_USER_UID", "").strip()
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "gemma4:e4b")
 
@@ -256,23 +258,10 @@ def save_markdown(full_markdown: str, run_at: datetime, email_count: int) -> Pat
 
 
 # ---------- Telegram delivery ----------
+# Routes via firestore_alerts: customer's own bot if linked, else env shared bot.
 def send_telegram(text: str):
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     for i in range(0, len(text), 4000):
-        chunk = text[i : i + 4000]
-        try:
-            r = requests.post(
-                url,
-                json={
-                    "chat_id": AUTHORIZED_CHAT_ID,
-                    "text": chunk,
-                    "disable_web_page_preview": True,
-                },
-                timeout=15,
-            )
-            r.raise_for_status()
-        except Exception as e:
-            log.error(f"Telegram send failed: {e}")
+        send_alert(USER_UID, text[i : i + 4000])
 
 
 # ---------- Main ----------

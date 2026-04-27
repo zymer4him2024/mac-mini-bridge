@@ -37,6 +37,8 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 
+from firestore_telegram import find_link_token, complete_link
+
 # ---------- Config ----------
 BASE_DIR = Path(__file__).parent.resolve()
 load_dotenv(BASE_DIR / ".env")
@@ -331,13 +333,54 @@ def authorized(update: Update) -> bool:
     return bool(update.effective_chat) and update.effective_chat.id == AUTHORIZED_CHAT_ID
 
 
-async def start(update: Update, _: ContextTypes.DEFAULT_TYPE):
-    if not authorized(update):
-        await update.message.reply_text("Sorry, this bot is private.")
+async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    # /start <token> — link an email2ppt account.
+    token = ctx.args[0].strip() if ctx.args else ""
+    if token:
+        chat = update.effective_chat
+        user = update.effective_user
+        try:
+            uid = find_link_token(token)
+        except Exception:
+            log.exception("find_link_token failed")
+            await update.message.reply_text(
+                "Something went wrong on our end. Try again in a moment."
+            )
+            return
+        if not uid:
+            await update.message.reply_text(
+                "That link expired or is invalid. Click Link Telegram again "
+                "in your email2ppt portal."
+            )
+            return
+        try:
+            complete_link(
+                uid,
+                chat.id,
+                user.username if user else None,
+                user.first_name if user else None,
+            )
+        except Exception:
+            log.exception("complete_link failed")
+            await update.message.reply_text(
+                "Couldn't finish linking. Try again in a moment."
+            )
+            return
+        await update.message.reply_text(
+            "✅ Linked your email2ppt account. Future alerts will arrive here."
+        )
+        return
+
+    # Plain /start — admin gets the existing welcome; everyone else gets onboarding.
+    if authorized(update):
+        await update.message.reply_text(
+            f"Hi Shawn — running locally on your Mac mini ({OLLAMA_MODEL}). "
+            "Ask me anything, or say 'check inbox'."
+        )
         return
     await update.message.reply_text(
-        f"Hi Shawn — running locally on your Mac mini ({OLLAMA_MODEL}). "
-        "Ask me anything, or say 'check inbox'."
+        "Hi — to receive your email2ppt alerts here, click "
+        "*Link Telegram* in https://email2ppt.web.app Settings."
     )
 
 
@@ -406,8 +449,11 @@ async def trigger_ppt(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def handle_message(update: Update, _: ContextTypes.DEFAULT_TYPE):
     if not authorized(update):
-        log.warning(f"Unauthorized message from chat_id={update.effective_chat.id}")
-        await update.message.reply_text("Sorry, this bot is private.")
+        log.info(f"Non-admin message from chat_id={update.effective_chat.id}")
+        await update.message.reply_text(
+            "Conversational features are admin-only. Your email2ppt alerts "
+            "will arrive automatically here once linked."
+        )
         return
 
     text = update.message.text or ""
