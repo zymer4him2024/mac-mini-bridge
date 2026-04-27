@@ -40,10 +40,15 @@ load_dotenv(BASE_DIR / ".env")
 
 from firestore_activity import _client as firestore_client, report_run  # noqa: E402
 from firestore_alerts import send_alert, send_document  # noqa: E402
+from firestore_users import (  # noqa: E402
+    GOOGLE_OAUTH_WEB_CLIENT_ID,
+    GOOGLE_OAUTH_WEB_CLIENT_SECRET,
+    enumerate_linked_users,
+    load_user_credentials,
+)
 
 from openai import OpenAI  # noqa: E402
 from google.oauth2.credentials import Credentials  # noqa: E402
-from google.auth.transport.requests import Request  # noqa: E402
 from google.auth.exceptions import RefreshError  # noqa: E402
 from googleapiclient.discovery import build  # noqa: E402
 
@@ -56,16 +61,6 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak  
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.1:8b")
 
-GOOGLE_OAUTH_WEB_CLIENT_ID = os.environ.get(
-    "GOOGLE_OAUTH_WEB_CLIENT_ID", ""
-).strip()
-GOOGLE_OAUTH_WEB_CLIENT_SECRET = os.environ.get(
-    "GOOGLE_OAUTH_WEB_CLIENT_SECRET", ""
-).strip()
-
-GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
-TOKEN_URI = "https://oauth2.googleapis.com/token"
-
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 LOG_PATH = BASE_DIR / "watcher.log"
@@ -75,51 +70,6 @@ logging.basicConfig(
     handlers=[logging.FileHandler(LOG_PATH), logging.StreamHandler()],
 )
 log = logging.getLogger("watcher")
-
-
-# ---------- Per-user credentials ----------
-def enumerate_linked_users(db) -> list[str]:
-    """Return uids of all users with gmail.email set."""
-    uids: list[str] = []
-    for snap in db.collection("users").stream():
-        data = snap.to_dict() or {}
-        if (data.get("gmail") or {}).get("email"):
-            uids.append(snap.id)
-    return uids
-
-
-def load_user_credentials(db, uid: str) -> Credentials:
-    """Build refreshed Credentials from users/{uid}/secrets/gmail."""
-    if not GOOGLE_OAUTH_WEB_CLIENT_ID or not GOOGLE_OAUTH_WEB_CLIENT_SECRET:
-        raise RuntimeError(
-            "GOOGLE_OAUTH_WEB_CLIENT_ID and GOOGLE_OAUTH_WEB_CLIENT_SECRET "
-            "must be set in .env"
-        )
-    secret_doc = (
-        db.collection("users")
-        .document(uid)
-        .collection("secrets")
-        .document("gmail")
-        .get()
-    )
-    if not secret_doc.exists:
-        raise RuntimeError(f"no refresh token at users/{uid}/secrets/gmail")
-    data = secret_doc.to_dict() or {}
-    refresh_token = data.get("refreshToken")
-    if not refresh_token:
-        raise RuntimeError(
-            f"users/{uid}/secrets/gmail.refreshToken is empty"
-        )
-    creds = Credentials(
-        token=None,
-        refresh_token=refresh_token,
-        token_uri=TOKEN_URI,
-        client_id=GOOGLE_OAUTH_WEB_CLIENT_ID,
-        client_secret=GOOGLE_OAUTH_WEB_CLIENT_SECRET,
-        scopes=GMAIL_SCOPES,
-    )
-    creds.refresh(Request())
-    return creds
 
 
 # ---------- Gmail helpers ----------

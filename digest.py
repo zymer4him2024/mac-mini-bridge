@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Daily email digest for Shawn.
+Daily email digest (multi-tenant).
 
-What it does:
-  1. Reads ~/telegram-bridge/priority_senders.txt for the priority list.
-  2. Searches Gmail for emails from those senders in the last 24 hours.
-  3. Summarizes them with the local Ollama model.
-  4. Saves a Markdown file to ~/email-digests/YYYY-MM-DD-morning.md.
-  5. Sends a compact version to Telegram.
+For every user with gmail.email set in Firestore:
+  1. Build credentials from users/{uid}/secrets/gmail.refreshToken.
+  2. Search Gmail for emails from priority senders in the last 24 hours.
+  3. Summarize them with the local Ollama model.
+  4. Save a Markdown file to ~/email-digests/{uid}/YYYY-MM-DD-morning.md.
+  5. Send a compact version to the user's Telegram chat.
 
 Designed to be run by launchd at 7:00 AM daily.
 """
@@ -18,36 +18,33 @@ import logging
 import traceback
 from pathlib import Path
 from datetime import datetime, timezone
-import requests
-
-from firestore_activity import report_run
-from firestore_alerts import send_alert
 
 from dotenv import load_dotenv
-from openai import OpenAI
-from google.oauth2.credentials import Credentials
-from google.auth.transport.requests import Request
-from googleapiclient.discovery import build
 
 # ---------- Config ----------
-BRIDGE_DIR = Path.home() / "telegram-bridge"
+BASE_DIR = Path(__file__).parent.resolve()
 DIGEST_DIR = Path.home() / "email-digests"
-SENDERS_FILE = BRIDGE_DIR / "priority_senders.txt"
+SENDERS_FILE = BASE_DIR / "priority_senders.txt"
 
-load_dotenv(BRIDGE_DIR / ".env")
+# Load .env BEFORE importing firestore_* — those modules and firestore_users
+# capture env vars at import time. See watcher.py for the same pattern.
+load_dotenv(BASE_DIR / ".env")
 
-TELEGRAM_BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
-AUTHORIZED_CHAT_ID = int(os.environ["AUTHORIZED_CHAT_ID"])
-USER_UID = os.environ.get("EMAIL2PPT_USER_UID", "").strip()
+from firestore_activity import _client as firestore_client, report_run  # noqa: E402
+from firestore_alerts import send_alert  # noqa: E402
+from firestore_users import enumerate_linked_users, load_user_credentials  # noqa: E402
+
+from openai import OpenAI  # noqa: E402
+from google.auth.exceptions import RefreshError  # noqa: E402
+from googleapiclient.discovery import build  # noqa: E402
+
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "gemma4:e4b")
-
-GMAIL_TOKEN_PATH = BRIDGE_DIR / "gmail_token.json"
-GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
+ADMIN_USER_UID = os.environ.get("ADMIN_USER_UID", "").strip()
 
 DIGEST_DIR.mkdir(parents=True, exist_ok=True)
 
-LOG_PATH = BRIDGE_DIR / "digest.log"
+LOG_PATH = BASE_DIR / "digest.log"
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
@@ -57,14 +54,6 @@ log = logging.getLogger("digest")
 
 
 # ---------- Gmail helpers ----------
-def get_gmail_service():
-    creds = Credentials.from_authorized_user_file(str(GMAIL_TOKEN_PATH), GMAIL_SCOPES)
-    if creds.expired and creds.refresh_token:
-        creds.refresh(Request())
-        GMAIL_TOKEN_PATH.write_text(creds.to_json())
-    return build("gmail", "v1", credentials=creds)
-
-
 def _extract_body(payload) -> str:
     if payload.get("body", {}).get("data"):
         return base64.urlsafe_b64decode(payload["body"]["data"]).decode(
@@ -82,9 +71,9 @@ def _extract_body(payload) -> str:
     return ""
 
 
-def fetch_priority_emails(senders: list) -> list:
+def fetch_priority_emails(creds, senders: list) -> list:
     """Fetch emails from priority senders received in the last 24 hours."""
-    service = get_gmail_service()
+    service = build("gmail", "v1", credentials=creds)
 
     # Build OR query — Gmail search syntax: (from:a OR from:b) newer_than:1d
     or_clause = " OR ".join(f"from:{s}" for s in senders)
@@ -243,9 +232,11 @@ DIGEST TO COMPRESS:
 
 
 # ---------- File save ----------
-def save_markdown(full_markdown: str, run_at: datetime, email_count: int) -> Path:
+def save_markdown(uid: str, full_markdown: str, run_at: datetime, email_count: int) -> Path:
     filename = run_at.strftime("%Y-%m-%d") + "-morning.md"
-    path = DIGEST_DIR / filename
+    user_dir = DIGEST_DIR / uid
+    user_dir.mkdir(parents=True, exist_ok=True)
+    path = user_dir / filename
     header = (
         f"# Daily Email Digest\n"
         f"**{run_at.strftime('%A, %B %d, %Y')}** · "
@@ -258,38 +249,21 @@ def save_markdown(full_markdown: str, run_at: datetime, email_count: int) -> Pat
 
 
 # ---------- Telegram delivery ----------
-# Routes via firestore_alerts: customer's own bot if linked, else env shared bot.
-def send_telegram(text: str):
+# Routes via firestore_alerts: customerBot first, else Quick-Link, else drop.
+def send_telegram(uid: str, text: str):
     for i in range(0, len(text), 4000):
-        send_alert(USER_UID, text[i : i + 4000])
+        send_alert(uid, text[i : i + 4000])
 
 
-# ---------- Main ----------
-def main():
-    started = datetime.now(timezone.utc)
+# ---------- Per-user pipeline ----------
+def run_digest_for_user(db, uid: str, senders: list, run_at: datetime, started: datetime) -> None:
     outputs: list[str] = []
     email_count = 0
     try:
-        log.info("=" * 60)
-        log.info("Starting daily email digest")
-        run_at = datetime.now()
-
-        senders = load_priority_senders()
-        if not senders:
-            msg = (
-                f"No priority senders configured.\n"
-                f"Edit: {SENDERS_FILE}"
-            )
-            log.warning(msg)
-            send_telegram(f"📭 Daily digest skipped — no senders configured.\n\n{msg}")
-            report_run("digest", "ok", started_at=started, email_count=0)
-            return
-
-        log.info(f"Priority senders ({len(senders)}): {senders}")
-
-        emails = fetch_priority_emails(senders)
+        creds = load_user_credentials(db, uid)
+        emails = fetch_priority_emails(creds, senders)
         email_count = len(emails)
-        log.info(f"Matching emails in last 24h: {email_count}")
+        log.info("uid=%s matching emails in last 24h: %d", uid, email_count)
 
         if not emails:
             no_email_md = (
@@ -297,11 +271,12 @@ def main():
                 f"No emails received from your {len(senders)} priority senders "
                 f"in the last 24 hours. Quiet morning.\n"
             )
-            md_path = save_markdown(no_email_md, run_at, 0)
-            outputs.append(md_path.name)
+            md_path = save_markdown(uid, no_email_md, run_at, 0)
+            outputs.append(str(md_path.relative_to(DIGEST_DIR)))
             send_telegram(
+                uid,
                 f"📭 Daily digest — {run_at.strftime('%a %b %d')}\n"
-                f"No priority emails in the last 24 hours."
+                f"No priority emails in the last 24 hours.",
             )
             report_run(
                 "digest",
@@ -309,14 +284,14 @@ def main():
                 started_at=started,
                 email_count=0,
                 outputs=outputs,
+                uid=uid,
             )
             return
 
         short, full = summarize_emails(emails)
-
-        md_path = save_markdown(full, run_at, len(emails))
-        log.info(f"Saved digest to {md_path}")
-        outputs.append(md_path.name)
+        md_path = save_markdown(uid, full, run_at, len(emails))
+        log.info("uid=%s saved digest to %s", uid, md_path)
+        outputs.append(str(md_path.relative_to(DIGEST_DIR)))
 
         telegram_msg = (
             f"📬 Daily Digest — {run_at.strftime('%a %b %d')}\n"
@@ -324,16 +299,29 @@ def main():
             f"\n"
             f"{short}"
         )
-        send_telegram(telegram_msg)
-        log.info("Digest sent to Telegram")
+        send_telegram(uid, telegram_msg)
+        log.info("uid=%s digest sent to Telegram", uid)
         report_run(
             "digest",
             "ok",
             started_at=started,
             email_count=email_count,
             outputs=outputs,
+            uid=uid,
+        )
+    except RefreshError as exc:
+        log.warning("uid=%s refresh failed: %s", uid, exc)
+        report_run(
+            "digest",
+            "error",
+            started_at=started,
+            email_count=email_count,
+            outputs=outputs,
+            error=f"RefreshError: {exc}",
+            uid=uid,
         )
     except Exception:
+        log.exception("uid=%s digest failed", uid)
         report_run(
             "digest",
             "error",
@@ -341,17 +329,57 @@ def main():
             email_count=email_count,
             outputs=outputs,
             error=traceback.format_exc(),
+            uid=uid,
         )
-        raise
+
+
+# ---------- Main ----------
+def main():
+    started = datetime.now(timezone.utc)
+    run_at = datetime.now()
+    log.info("=" * 60)
+    log.info("Starting daily email digest (multi-tenant)")
+
+    db = firestore_client()
+    uids = enumerate_linked_users(db)
+    log.info("enumerated %d users with gmail set: %s", len(uids), uids)
+    if not uids:
+        return
+
+    senders = load_priority_senders()
+    if not senders:
+        msg = (
+            f"No priority senders configured.\n"
+            f"Edit: {SENDERS_FILE}"
+        )
+        log.warning(msg)
+        for uid in uids:
+            send_telegram(
+                uid,
+                f"📭 Daily digest skipped — no senders configured.\n\n{msg}",
+            )
+            report_run(
+                "digest", "ok", started_at=started, email_count=0, uid=uid
+            )
+        return
+
+    log.info("Priority senders (%d): %s", len(senders), senders)
+
+    for uid in uids:
+        run_digest_for_user(db, uid, senders, run_at, started)
 
 
 if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        log.exception("Digest failed")
-        try:
-            send_telegram(f"⚠️ Daily digest failed: {e}\nSee {LOG_PATH}")
-        except Exception:
-            pass
+        log.exception("Digest run failed")
+        if ADMIN_USER_UID:
+            try:
+                send_telegram(
+                    ADMIN_USER_UID,
+                    f"⚠️ Daily digest run failed: {e}\nSee {LOG_PATH}",
+                )
+            except Exception:
+                log.exception("Failed to deliver fatal-alert to admin")
         raise
