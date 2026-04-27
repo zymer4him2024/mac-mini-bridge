@@ -50,12 +50,19 @@ def report_run(
     email_count: int = 0,
     outputs: list[str] | None = None,
     error: str | None = None,
+    uid: str | None = None,
 ) -> None:
-    """Write one activity record. Never raises."""
-    user_uid = os.environ.get("EMAIL2PPT_USER_UID", "").strip()
+    """Write one activity record. Never raises.
+
+    `uid` overrides the EMAIL2PPT_USER_UID env var when provided. Multi-tenant
+    callers (watcher loop) pass the per-iteration uid; single-tenant callers
+    (digest, ppt, config_sync) keep relying on the env fallback.
+    """
+    user_uid = (uid or os.environ.get("EMAIL2PPT_USER_UID", "")).strip()
     if not user_uid:
         log.warning(
-            "EMAIL2PPT_USER_UID not set; activity report skipped (%s)",
+            "no uid provided and EMAIL2PPT_USER_UID not set; "
+            "activity report skipped (%s)",
             run_type,
         )
         return

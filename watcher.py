@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 """
-Gmail watcher for priority senders.
+Gmail watcher for priority senders (multi-tenant).
 
-For each new email matching priority_senders.txt:
-  1. Send Telegram alert with sender + subject.
-  2. Summarize via local Ollama.
-  3. Build PDF and save to ~/email-pdfs/.
-  4. Send PDF to Telegram as a document.
+Each cycle enumerates portal-linked customers (users with gmail.email set in
+Firestore) and for each runs the same pipeline:
+  1. Build credentials from users/{uid}/secrets/gmail.refreshToken.
+  2. Send Telegram alert with sender + subject (per-user bot).
+  3. Summarize via local Ollama.
+  4. Build PDF and save to ~/email-pdfs/{uid}/.
+  5. Send PDF to Telegram as a document.
 
 One-shot: run periodically via LaunchAgent (StartInterval=300).
-Dedup via watcher_state.json (last 200 message IDs).
+Dedup state lives at users/{uid}/state/watcher in Firestore.
 """
 
 import os
-import sys
 import json
 import base64
 import logging
@@ -21,15 +22,15 @@ import re
 import traceback
 from pathlib import Path
 from datetime import datetime, timezone
-import requests
 
-from firestore_activity import report_run
+from firestore_activity import _client as firestore_client, report_run
 from firestore_alerts import send_alert, send_document
 
 from dotenv import load_dotenv
 from openai import OpenAI
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
+from google.auth.exceptions import RefreshError
 from googleapiclient.discovery import build
 
 from reportlab.lib.pagesizes import letter
@@ -41,7 +42,6 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
 # ---------- Config ----------
 BASE_DIR = Path(__file__).parent.resolve()
 OUTPUT_DIR = Path.home() / "email-pdfs"
-STATE_FILE = BASE_DIR / "watcher_state.json"
 SENDERS_FILE = BASE_DIR / "priority_senders.txt"
 WATCHER_CONFIG = BASE_DIR / "watcher_config.json"
 MAX_PROCESSED = 200
@@ -49,14 +49,18 @@ DEFAULT_LOOKBACK = "1d"
 
 load_dotenv(BASE_DIR / ".env")
 
-TELEGRAM_BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
-AUTHORIZED_CHAT_ID = int(os.environ["AUTHORIZED_CHAT_ID"])
-USER_UID = os.environ.get("EMAIL2PPT_USER_UID", "").strip()
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.1:8b")
 
-GMAIL_TOKEN_PATH = BASE_DIR / "gmail_token.json"
-GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
+GOOGLE_OAUTH_WEB_CLIENT_ID = os.environ.get(
+    "GOOGLE_OAUTH_WEB_CLIENT_ID", ""
+).strip()
+GOOGLE_OAUTH_WEB_CLIENT_SECRET = os.environ.get(
+    "GOOGLE_OAUTH_WEB_CLIENT_SECRET", ""
+).strip()
+
+GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
+TOKEN_URI = "https://oauth2.googleapis.com/token"
 
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -69,15 +73,52 @@ logging.basicConfig(
 log = logging.getLogger("watcher")
 
 
+# ---------- Per-user credentials ----------
+def enumerate_linked_users(db) -> list[str]:
+    """Return uids of all users with gmail.email set."""
+    uids: list[str] = []
+    for snap in db.collection("users").stream():
+        data = snap.to_dict() or {}
+        if (data.get("gmail") or {}).get("email"):
+            uids.append(snap.id)
+    return uids
+
+
+def load_user_credentials(db, uid: str) -> Credentials:
+    """Build refreshed Credentials from users/{uid}/secrets/gmail."""
+    if not GOOGLE_OAUTH_WEB_CLIENT_ID or not GOOGLE_OAUTH_WEB_CLIENT_SECRET:
+        raise RuntimeError(
+            "GOOGLE_OAUTH_WEB_CLIENT_ID and GOOGLE_OAUTH_WEB_CLIENT_SECRET "
+            "must be set in .env"
+        )
+    secret_doc = (
+        db.collection("users")
+        .document(uid)
+        .collection("secrets")
+        .document("gmail")
+        .get()
+    )
+    if not secret_doc.exists:
+        raise RuntimeError(f"no refresh token at users/{uid}/secrets/gmail")
+    data = secret_doc.to_dict() or {}
+    refresh_token = data.get("refreshToken")
+    if not refresh_token:
+        raise RuntimeError(
+            f"users/{uid}/secrets/gmail.refreshToken is empty"
+        )
+    creds = Credentials(
+        token=None,
+        refresh_token=refresh_token,
+        token_uri=TOKEN_URI,
+        client_id=GOOGLE_OAUTH_WEB_CLIENT_ID,
+        client_secret=GOOGLE_OAUTH_WEB_CLIENT_SECRET,
+        scopes=GMAIL_SCOPES,
+    )
+    creds.refresh(Request())
+    return creds
+
+
 # ---------- Gmail helpers ----------
-def get_gmail_service():
-    creds = Credentials.from_authorized_user_file(str(GMAIL_TOKEN_PATH), GMAIL_SCOPES)
-    if creds.expired and creds.refresh_token:
-        creds.refresh(Request())
-        GMAIL_TOKEN_PATH.write_text(creds.to_json())
-    return build("gmail", "v1", credentials=creds)
-
-
 def _extract_body(payload) -> str:
     if payload.get("body", {}).get("data"):
         return base64.urlsafe_b64decode(payload["body"]["data"]).decode(
@@ -116,10 +157,10 @@ def _load_lookback() -> str:
     return v if isinstance(v, str) and v.strip() else DEFAULT_LOOKBACK
 
 
-def fetch_new_emails(senders: list) -> list:
+def fetch_new_emails(creds: Credentials, senders: list) -> list:
     if not senders:
         return []
-    service = get_gmail_service()
+    service = build("gmail", "v1", credentials=creds)
     or_clause = " OR ".join(f"from:{s}" for s in senders)
     query = f"({or_clause}) newer_than:{_load_lookback()}"
     log.info(f"Gmail query: {query}")
@@ -152,19 +193,31 @@ def fetch_new_emails(senders: list) -> list:
     return emails
 
 
-# ---------- State (dedup) ----------
-def load_state() -> dict:
-    if not STATE_FILE.exists():
-        return {"processed_ids": []}
-    try:
-        return json.loads(STATE_FILE.read_text())
-    except json.JSONDecodeError:
-        log.warning("State file corrupt, resetting")
-        return {"processed_ids": []}
+# ---------- State (dedup) — per-user, Firestore-backed ----------
+def load_user_state(db, uid: str) -> list[str]:
+    doc = (
+        db.collection("users")
+        .document(uid)
+        .collection("state")
+        .document("watcher")
+        .get()
+    )
+    if not doc.exists:
+        return []
+    data = doc.to_dict() or {}
+    ids = data.get("processedIds") or []
+    return [str(x) for x in ids]
 
 
-def save_state(processed_ids: list):
-    STATE_FILE.write_text(json.dumps({"processed_ids": processed_ids}, indent=2))
+def save_user_state(db, uid: str, processed_ids: list[str]) -> None:
+    db.collection("users").document(uid).collection("state").document(
+        "watcher"
+    ).set(
+        {
+            "processedIds": processed_ids[-MAX_PROCESSED:],
+            "updatedAt": datetime.now(timezone.utc),
+        }
+    )
 
 
 # ---------- LLM summarization ----------
@@ -294,16 +347,6 @@ def build_pdf(email: dict, summary: dict, out_path: Path):
     doc.build(story)
 
 
-# ---------- Telegram ----------
-# Routes via firestore_alerts: customer's own bot if linked, else env shared bot.
-def send_telegram(text: str):
-    send_alert(USER_UID, text)
-
-
-def send_telegram_document(path: Path, caption: str):
-    send_document(USER_UID, path, caption)
-
-
 # ---------- Main ----------
 def _sender_slug(from_field: str) -> str:
     m = re.search(r"<([^>]+)>", from_field)
@@ -312,96 +355,166 @@ def _sender_slug(from_field: str) -> str:
     return re.sub(r"[^a-zA-Z0-9_-]", "_", addr)[:30] or "unknown"
 
 
-def main():
-    started = datetime.now(timezone.utc)
+def process_user(
+    db,
+    uid: str,
+    senders: list[str],
+    llm_client: OpenAI,
+) -> None:
+    """One iteration of the pipeline for a single user. Never raises."""
+    user_started = datetime.now(timezone.utc)
     outputs: list[str] = []
     new_count = 0
     try:
-        log.info("=" * 60)
-        log.info("Watcher run starting")
+        log.info("[%s] starting", uid)
 
-        senders = load_priority_senders()
-        if not senders:
-            log.warning("No priority senders configured")
-            report_run("watcher", "ok", started_at=started, email_count=0)
+        try:
+            creds = load_user_credentials(db, uid)
+        except RefreshError as exc:
+            log.error("[%s] token refresh failed (revoked?): %s", uid, exc)
+            report_run(
+                "watcher",
+                "error",
+                started_at=user_started,
+                error=f"refresh failed: {exc}",
+                uid=uid,
+            )
+            return
+        except (RuntimeError, ValueError) as exc:
+            log.error("[%s] credentials load failed: %s", uid, exc)
+            report_run(
+                "watcher",
+                "error",
+                started_at=user_started,
+                error=str(exc),
+                uid=uid,
+            )
             return
 
-        log.info(f"Priority senders ({len(senders)}): {senders}")
+        if not senders:
+            report_run(
+                "watcher", "ok",
+                started_at=user_started, email_count=0, uid=uid,
+            )
+            return
 
-        state = load_state()
-        seen_ids = list(state.get("processed_ids", []))
+        seen_ids = load_user_state(db, uid)
         seen = set(seen_ids)
 
-        emails = fetch_new_emails(senders)
-        log.info(f"Matching emails (last 24h): {len(emails)}")
+        emails = fetch_new_emails(creds, senders)
+        log.info("[%s] matching emails: %d", uid, len(emails))
 
         new_emails = [e for e in emails if e["id"] not in seen]
         new_count = len(new_emails)
-        log.info(f"New (not yet processed): {new_count}")
+        log.info("[%s] new (not yet processed): %d", uid, new_count)
 
         if not new_emails:
-            report_run("watcher", "ok", started_at=started, email_count=0)
+            report_run(
+                "watcher", "ok",
+                started_at=user_started, email_count=0, uid=uid,
+            )
             return
 
-        client = OpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama-local")
+        user_pdf_dir = OUTPUT_DIR / uid
+        user_pdf_dir.mkdir(parents=True, exist_ok=True)
 
         for email in new_emails:
             try:
-                send_telegram(f"📬 New from {email['from']}\n{email['subject']}")
+                send_alert(
+                    uid,
+                    f"📬 New from {email['from']}\n{email['subject']}",
+                )
 
-                log.info(f"Summarizing: {email['subject'][:60]}")
-                summary = summarize_email(client, email)
+                log.info("[%s] summarizing: %s", uid, email["subject"][:60])
+                summary = summarize_email(llm_client, email)
 
                 run_at = datetime.now()
                 pdf_name = (
                     run_at.strftime("%Y-%m-%d-%H%M%S")
                     + "-" + _sender_slug(email["from"]) + ".pdf"
                 )
-                pdf_path = OUTPUT_DIR / pdf_name
+                pdf_path = user_pdf_dir / pdf_name
                 build_pdf(email, summary, pdf_path)
-                log.info(f"PDF saved: {pdf_path}")
+                log.info("[%s] PDF saved: %s", uid, pdf_path)
                 outputs.append(pdf_name)
 
                 urg = (summary.get("urgency") or "low").upper()
                 caption = f"{email['subject']}\nUrgency: {urg}"
-                send_telegram_document(pdf_path, caption)
+                send_document(uid, pdf_path, caption)
 
                 seen_ids.append(email["id"])
                 seen.add(email["id"])
-            except Exception as e:
-                log.exception(f"Failed processing {email['id']}: {e}")
-                # Don't add to seen — retry next run
+            except Exception as e:  # noqa: BLE001 - per-email isolation
+                log.exception(
+                    "[%s] failed processing %s: %s", uid, email["id"], e
+                )
+                # Don't add to seen — retry next run.
 
-        if len(seen_ids) > MAX_PROCESSED:
-            seen_ids = seen_ids[-MAX_PROCESSED:]
-        save_state(seen_ids)
-        log.info(f"State saved ({len(seen_ids)} ids)")
+        save_user_state(db, uid, seen_ids)
+        log.info("[%s] state saved (%d ids)", uid, len(seen_ids[-MAX_PROCESSED:]))
         report_run(
             "watcher",
             "ok",
-            started_at=started,
+            started_at=user_started,
             email_count=new_count,
             outputs=outputs,
+            uid=uid,
         )
-    except Exception:
+    except Exception:  # noqa: BLE001 - per-user isolation
+        log.exception("[%s] watcher iteration crashed", uid)
         report_run(
             "watcher",
             "error",
-            started_at=started,
+            started_at=user_started,
             email_count=new_count,
             outputs=outputs,
             error=traceback.format_exc(),
+            uid=uid,
         )
-        raise
+
+
+def main():
+    log.info("=" * 60)
+    log.info("Watcher run starting (multi-tenant)")
+
+    if not GOOGLE_OAUTH_WEB_CLIENT_ID or not GOOGLE_OAUTH_WEB_CLIENT_SECRET:
+        log.error(
+            "GOOGLE_OAUTH_WEB_CLIENT_ID/GOOGLE_OAUTH_WEB_CLIENT_SECRET not "
+            "set; aborting"
+        )
+        return
+
+    try:
+        db = firestore_client()
+    except (FileNotFoundError, OSError) as exc:
+        log.error("Firestore client init failed: %s", exc)
+        return
+
+    try:
+        uids = enumerate_linked_users(db)
+    except Exception:  # noqa: BLE001 - top-level enumeration guard
+        log.exception("Failed to enumerate users")
+        return
+
+    log.info("enumerated %d users with gmail set: %s", len(uids), uids)
+    if not uids:
+        return
+
+    senders = load_priority_senders()
+    if senders:
+        log.info("Priority senders (%d): %s", len(senders), senders)
+    else:
+        log.warning("No priority senders configured")
+
+    llm_client = OpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama-local")
+
+    for uid in uids:
+        process_user(db, uid, senders, llm_client)
 
 
 if __name__ == "__main__":
     try:
         main()
-    except Exception as e:
+    except Exception:
         log.exception("Watcher run failed")
-        try:
-            send_telegram(f"⚠️ Watcher failed: {e}\nSee {LOG_PATH}")
-        except Exception:
-            pass
         raise
