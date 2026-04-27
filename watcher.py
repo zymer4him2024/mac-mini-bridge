@@ -23,21 +23,7 @@ import traceback
 from pathlib import Path
 from datetime import datetime, timezone
 
-from firestore_activity import _client as firestore_client, report_run
-from firestore_alerts import send_alert, send_document
-
 from dotenv import load_dotenv
-from openai import OpenAI
-from google.oauth2.credentials import Credentials
-from google.auth.transport.requests import Request
-from google.auth.exceptions import RefreshError
-from googleapiclient.discovery import build
-
-from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch
-from reportlab.lib.colors import HexColor
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
 
 # ---------- Config ----------
 BASE_DIR = Path(__file__).parent.resolve()
@@ -47,7 +33,25 @@ WATCHER_CONFIG = BASE_DIR / "watcher_config.json"
 MAX_PROCESSED = 200
 DEFAULT_LOOKBACK = "1d"
 
+# Load .env BEFORE importing firestore_alerts — that module captures
+# TELEGRAM_BOT_TOKEN / AUTHORIZED_CHAT_ID at import time for the shared-bot
+# fallback. Importing it before load_dotenv leaves both as empty strings.
 load_dotenv(BASE_DIR / ".env")
+
+from firestore_activity import _client as firestore_client, report_run  # noqa: E402
+from firestore_alerts import send_alert, send_document  # noqa: E402
+
+from openai import OpenAI  # noqa: E402
+from google.oauth2.credentials import Credentials  # noqa: E402
+from google.auth.transport.requests import Request  # noqa: E402
+from google.auth.exceptions import RefreshError  # noqa: E402
+from googleapiclient.discovery import build  # noqa: E402
+
+from reportlab.lib.pagesizes import letter  # noqa: E402
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle  # noqa: E402
+from reportlab.lib.units import inch  # noqa: E402
+from reportlab.lib.colors import HexColor  # noqa: E402
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak  # noqa: E402
 
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.1:8b")
