@@ -23,9 +23,10 @@ from pathlib import Path
 from email.mime.text import MIMEText
 
 from dotenv import load_dotenv
-from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
     Application,
+    CallbackQueryHandler,
     CommandHandler,
     MessageHandler,
     ContextTypes,
@@ -37,7 +38,12 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 
-from firestore_telegram import find_link_token, complete_link
+from firestore_telegram import (
+    LinkLookupStatus,
+    consume_link_token,
+    delete_telegram_link,
+    find_telegram_link,
+)
 
 # ---------- Config ----------
 BASE_DIR = Path(__file__).parent.resolve()
@@ -334,40 +340,59 @@ def authorized(update: Update) -> bool:
 
 
 async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    # /start <token> — link an email2ppt account.
-    token = ctx.args[0].strip() if ctx.args else ""
-    if token:
+    # /start <token-or-shortCode> — link an email2ppt account.
+    raw = ctx.args[0].strip() if ctx.args else ""
+    # Accept "123-456" or "123 456" as well as "123456" for the manual code.
+    token_or_code = raw.replace("-", "").replace(" ", "")
+    if token_or_code:
         chat = update.effective_chat
         user = update.effective_user
         try:
-            uid = find_link_token(token)
-        except Exception:
-            log.exception("find_link_token failed")
-            await update.message.reply_text(
-                "Something went wrong on our end. Try again in a moment."
-            )
-            return
-        if not uid:
-            await update.message.reply_text(
-                "That link expired or is invalid. Click Link Telegram again "
-                "in your email2ppt portal."
-            )
-            return
-        try:
-            complete_link(
-                uid,
+            status, uid = consume_link_token(
+                token_or_code,
                 chat.id,
                 user.username if user else None,
                 user.first_name if user else None,
             )
         except Exception:
-            log.exception("complete_link failed")
+            log.exception("consume_link_token failed")
             await update.message.reply_text(
-                "Couldn't finish linking. Try again in a moment."
+                "Something went wrong on our end. Try again in a moment."
             )
             return
+
+        fresh_button = InlineKeyboardMarkup(
+            [[InlineKeyboardButton("Get a fresh link", url="https://email2ppt.web.app")]]
+        )
+
+        if status is LinkLookupStatus.OK:
+            await update.message.reply_text(
+                "✅ Linked your email2ppt account. Future alerts will arrive here."
+            )
+            return
+        if status is LinkLookupStatus.CONSUMED_SELF:
+            await update.message.reply_text(
+                "You're already connected ✓ — alerts will arrive here. "
+                "Send /help to see what you can do."
+            )
+            return
+        if status is LinkLookupStatus.CONSUMED_OTHER:
+            await update.message.reply_text(
+                "This link was already used by someone else. "
+                "Open the email2ppt portal to get a fresh one.",
+                reply_markup=fresh_button,
+            )
+            return
+        if status is LinkLookupStatus.EXPIRED:
+            await update.message.reply_text(
+                "This link expired. Get a fresh one — they're good for 24 hours.",
+                reply_markup=fresh_button,
+            )
+            return
+        # NOT_FOUND
         await update.message.reply_text(
-            "✅ Linked your email2ppt account. Future alerts will arrive here."
+            "We couldn't find that link. Open the email2ppt portal to get a fresh one.",
+            reply_markup=fresh_button,
         )
         return
 
@@ -378,10 +403,138 @@ async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "Ask me anything, or say 'check inbox'."
         )
         return
-    await update.message.reply_text(
-        "Hi — to receive your email2ppt alerts here, click "
-        "*Link Telegram* in https://email2ppt.web.app Settings."
+    keyboard = InlineKeyboardMarkup(
+        [[InlineKeyboardButton("Get my link", url="https://email2ppt.web.app")]]
     )
+    await update.message.reply_text(
+        "Welcome to email2ppt — your alerts will arrive here once you connect "
+        "your account.",
+        reply_markup=keyboard,
+    )
+
+
+async def whoami(update: Update, _: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    try:
+        link = find_telegram_link(chat_id)
+    except Exception:
+        log.exception("find_telegram_link failed")
+        await update.message.reply_text(
+            "Something went wrong on our end. Try again in a moment."
+        )
+        return
+    if not link:
+        keyboard = InlineKeyboardMarkup(
+            [[InlineKeyboardButton("Get my link", url="https://email2ppt.web.app")]]
+        )
+        await update.message.reply_text(
+            "You're not connected to email2ppt yet.",
+            reply_markup=keyboard,
+        )
+        return
+
+    name = (
+        f"@{link['username']}" if link["username"]
+        else (link["firstName"] or "linked")
+    )
+    linked_at = link["linkedAt"]
+    since = linked_at.strftime("%Y-%m-%d") if linked_at else "earlier"
+    email = link["gmailEmail"]
+    if email and "@" in email:
+        local, domain = email.split("@", 1)
+        masked = f"{local[0]}***@{domain}"
+        email_line = f"\nLinked to {masked}."
+    else:
+        email_line = ""
+    await update.message.reply_text(
+        f"You're connected as {name} since {since}.{email_line}"
+    )
+
+
+async def unlink(update: Update, _: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    try:
+        link = find_telegram_link(chat_id)
+    except Exception:
+        log.exception("find_telegram_link failed")
+        await update.message.reply_text(
+            "Something went wrong on our end. Try again in a moment."
+        )
+        return
+    if not link:
+        await update.message.reply_text("You're not connected to email2ppt.")
+        return
+    keyboard = InlineKeyboardMarkup(
+        [[
+            InlineKeyboardButton("Yes, disconnect", callback_data="unlink:confirm"),
+            InlineKeyboardButton("Cancel", callback_data="unlink:cancel"),
+        ]]
+    )
+    await update.message.reply_text(
+        "Disconnect this Telegram from email2ppt? Alerts will stop arriving here.",
+        reply_markup=keyboard,
+    )
+
+
+async def unlink_callback(update: Update, _: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    data = query.data or ""
+    if data == "unlink:cancel":
+        await query.edit_message_text("Cancelled. You're still connected.")
+        return
+    if data != "unlink:confirm":
+        return
+    chat_id = query.message.chat.id
+    try:
+        link = find_telegram_link(chat_id)
+    except Exception:
+        log.exception("find_telegram_link failed during unlink confirm")
+        await query.edit_message_text(
+            "Something went wrong on our end. Try again in a moment."
+        )
+        return
+    if not link:
+        await query.edit_message_text("Already disconnected.")
+        return
+    try:
+        delete_telegram_link(link["uid"])
+    except Exception:
+        log.exception("delete_telegram_link failed")
+        await query.edit_message_text(
+            "Couldn't disconnect. Try again in a moment."
+        )
+        return
+    keyboard = InlineKeyboardMarkup(
+        [[InlineKeyboardButton("Get a fresh link", url="https://email2ppt.web.app")]]
+    )
+    await query.edit_message_text(
+        "Disconnected. Get a new link to reconnect.",
+        reply_markup=keyboard,
+    )
+
+
+async def help_command(update: Update, _: ContextTypes.DEFAULT_TYPE):
+    if authorized(update):
+        text = (
+            "Commands:\n"
+            "/start — link your email2ppt account\n"
+            "/whoami — check your connection\n"
+            "/unlink — disconnect this Telegram\n"
+            "/push — get your latest digest now\n"
+            "/ppt <query> — generate a PowerPoint from emails\n"
+            "/reset — clear conversation history\n"
+            "/help — show this list"
+        )
+    else:
+        text = (
+            "Commands:\n"
+            "/start — link your email2ppt account\n"
+            "/whoami — check your connection\n"
+            "/unlink — disconnect this Telegram\n"
+            "/help — show this list"
+        )
+    await update.message.reply_text(text)
 
 
 async def reset(update: Update, _: ContextTypes.DEFAULT_TYPE):
@@ -481,9 +634,13 @@ def main():
     log.info(f"Starting Telegram bridge with model={OLLAMA_MODEL} via {OLLAMA_BASE_URL}")
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("whoami", whoami))
+    app.add_handler(CommandHandler("unlink", unlink))
+    app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("reset", reset))
     app.add_handler(CommandHandler("push", trigger_digest))
     app.add_handler(CommandHandler("ppt", trigger_ppt))
+    app.add_handler(CallbackQueryHandler(unlink_callback, pattern=r"^unlink:"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.run_polling(drop_pending_updates=True)
 
