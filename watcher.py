@@ -28,10 +28,7 @@ from dotenv import load_dotenv
 # ---------- Config ----------
 BASE_DIR = Path(__file__).parent.resolve()
 OUTPUT_DIR = Path.home() / "email-pdfs"
-SENDERS_FILE = BASE_DIR / "priority_senders.txt"
-WATCHER_CONFIG = BASE_DIR / "watcher_config.json"
 MAX_PROCESSED = 200
-DEFAULT_LOOKBACK = "1d"
 
 # Load .env BEFORE importing firestore_alerts — that module captures
 # TELEGRAM_BOT_TOKEN / AUTHORIZED_CHAT_ID at import time for the shared-bot
@@ -44,6 +41,7 @@ from firestore_users import (  # noqa: E402
     GOOGLE_OAUTH_WEB_CLIENT_ID,
     GOOGLE_OAUTH_WEB_CLIENT_SECRET,
     enumerate_linked_users,
+    load_user_config,
     load_user_credentials,
 )
 
@@ -90,33 +88,12 @@ def _extract_body(payload) -> str:
     return ""
 
 
-def load_priority_senders() -> list:
-    if not SENDERS_FILE.exists():
-        return []
-    senders = []
-    for line in SENDERS_FILE.read_text().splitlines():
-        line = line.strip()
-        if line and not line.startswith("#"):
-            senders.append(line)
-    return senders
-
-
-def _load_lookback() -> str:
-    if not WATCHER_CONFIG.exists():
-        return DEFAULT_LOOKBACK
-    try:
-        v = json.loads(WATCHER_CONFIG.read_text()).get("lookback", DEFAULT_LOOKBACK)
-    except (json.JSONDecodeError, OSError):
-        return DEFAULT_LOOKBACK
-    return v if isinstance(v, str) and v.strip() else DEFAULT_LOOKBACK
-
-
-def fetch_new_emails(creds: Credentials, senders: list) -> list:
+def fetch_new_emails(creds: Credentials, senders: list, lookback: str) -> list:
     if not senders:
         return []
     service = build("gmail", "v1", credentials=creds)
     or_clause = " OR ".join(f"from:{s}" for s in senders)
-    query = f"({or_clause}) newer_than:{_load_lookback()}"
+    query = f"({or_clause}) newer_than:{lookback}"
     log.info(f"Gmail query: {query}")
     result = (
         service.users()
@@ -312,7 +289,6 @@ def _sender_slug(from_field: str) -> str:
 def process_user(
     db,
     uid: str,
-    senders: list[str],
     llm_client: OpenAI,
 ) -> None:
     """One iteration of the pipeline for a single user. Never raises."""
@@ -321,6 +297,11 @@ def process_user(
     new_count = 0
     try:
         log.info("[%s] starting", uid)
+
+        cfg = load_user_config(db, uid)
+        senders = cfg["senders"]
+        lookback = cfg["lookback"]
+        log.info("[%s] senders=%d lookback=%s", uid, len(senders), lookback)
 
         try:
             creds = load_user_credentials(db, uid)
@@ -346,6 +327,7 @@ def process_user(
             return
 
         if not senders:
+            log.info("[%s] no priorityWatchSenders configured; skipping", uid)
             report_run(
                 "watcher", "ok",
                 started_at=user_started, email_count=0, uid=uid,
@@ -355,7 +337,7 @@ def process_user(
         seen_ids = load_user_state(db, uid)
         seen = set(seen_ids)
 
-        emails = fetch_new_emails(creds, senders)
+        emails = fetch_new_emails(creds, senders, lookback)
         log.info("[%s] matching emails: %d", uid, len(emails))
 
         new_emails = [e for e in emails if e["id"] not in seen]
@@ -454,16 +436,10 @@ def main():
     if not uids:
         return
 
-    senders = load_priority_senders()
-    if senders:
-        log.info("Priority senders (%d): %s", len(senders), senders)
-    else:
-        log.warning("No priority senders configured")
-
     llm_client = OpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama-local")
 
     for uid in uids:
-        process_user(db, uid, senders, llm_client)
+        process_user(db, uid, llm_client)
 
 
 if __name__ == "__main__":

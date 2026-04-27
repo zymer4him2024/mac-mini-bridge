@@ -24,7 +24,6 @@ from dotenv import load_dotenv
 # ---------- Config ----------
 BASE_DIR = Path(__file__).parent.resolve()
 DIGEST_DIR = Path.home() / "email-digests"
-SENDERS_FILE = BASE_DIR / "priority_senders.txt"
 
 # Load .env BEFORE importing firestore_* — those modules and firestore_users
 # capture env vars at import time. See watcher.py for the same pattern.
@@ -32,7 +31,11 @@ load_dotenv(BASE_DIR / ".env")
 
 from firestore_activity import _client as firestore_client, report_run  # noqa: E402
 from firestore_alerts import send_alert  # noqa: E402
-from firestore_users import enumerate_linked_users, load_user_credentials  # noqa: E402
+from firestore_users import (  # noqa: E402
+    enumerate_linked_users,
+    load_user_config,
+    load_user_credentials,
+)
 
 from openai import OpenAI  # noqa: E402
 from google.auth.exceptions import RefreshError  # noqa: E402
@@ -71,13 +74,13 @@ def _extract_body(payload) -> str:
     return ""
 
 
-def fetch_priority_emails(creds, senders: list) -> list:
-    """Fetch emails from priority senders received in the last 24 hours."""
+def fetch_priority_emails(creds, senders: list, lookback: str) -> list:
+    """Fetch emails from priority senders within the per-user lookback window."""
     service = build("gmail", "v1", credentials=creds)
 
     # Build OR query — Gmail search syntax: (from:a OR from:b) newer_than:1d
     or_clause = " OR ".join(f"from:{s}" for s in senders)
-    query = f"({or_clause}) newer_than:1d"
+    query = f"({or_clause}) newer_than:{lookback}"
     log.info(f"Gmail query: {query}")
 
     result = (
@@ -109,31 +112,6 @@ def fetch_priority_emails(creds, senders: list) -> list:
             }
         )
     return emails
-
-
-# ---------- Sender list ----------
-def load_priority_senders() -> list:
-    if not SENDERS_FILE.exists():
-        SENDERS_FILE.write_text(
-            "# Priority Senders for Daily Email Digest\n"
-            "# One sender per line. Lines starting with # are ignored.\n"
-            "#\n"
-            "# Examples:\n"
-            "#   jane@acme.com         (specific email)\n"
-            "#   @sequoia.com          (anyone at sequoia.com)\n"
-            "#   ceo@yourpartner.io\n"
-            "#\n"
-            "# Add yours below this line:\n\n"
-        )
-        log.warning(f"Created empty {SENDERS_FILE}")
-        return []
-
-    senders = []
-    for line in SENDERS_FILE.read_text().splitlines():
-        line = line.strip()
-        if line and not line.startswith("#"):
-            senders.append(line)
-    return senders
 
 
 # ---------- LLM summarization ----------
@@ -256,27 +234,59 @@ def send_telegram(uid: str, text: str):
 
 
 # ---------- Per-user pipeline ----------
-def run_digest_for_user(db, uid: str, senders: list, run_at: datetime, started: datetime) -> None:
+def run_digest_for_user(db, uid: str, run_at: datetime, started: datetime) -> None:
     outputs: list[str] = []
     email_count = 0
     try:
+        cfg = load_user_config(db, uid)
+        if not cfg["digestEnabled"]:
+            log.info("uid=%s digestEnabled=false; skipping", uid)
+            report_run(
+                "digest",
+                "ok",
+                started_at=started,
+                email_count=0,
+                outputs=["disabled"],
+                uid=uid,
+            )
+            return
+
+        senders = cfg["senders"]
+        lookback = cfg["lookback"]
+        log.info("uid=%s senders=%d lookback=%s", uid, len(senders), lookback)
+        if not senders:
+            log.info("uid=%s no priorityWatchSenders configured; skipping", uid)
+            send_telegram(
+                uid,
+                "📭 Daily digest skipped — no priority senders configured.\n"
+                "Add senders in your portal Settings.",
+            )
+            report_run(
+                "digest",
+                "ok",
+                started_at=started,
+                email_count=0,
+                uid=uid,
+            )
+            return
+
         creds = load_user_credentials(db, uid)
-        emails = fetch_priority_emails(creds, senders)
+        emails = fetch_priority_emails(creds, senders, lookback)
         email_count = len(emails)
-        log.info("uid=%s matching emails in last 24h: %d", uid, email_count)
+        log.info("uid=%s matching emails in last %s: %d", uid, lookback, email_count)
 
         if not emails:
             no_email_md = (
                 f"## No priority emails today\n\n"
                 f"No emails received from your {len(senders)} priority senders "
-                f"in the last 24 hours. Quiet morning.\n"
+                f"in the last {lookback}. Quiet morning.\n"
             )
             md_path = save_markdown(uid, no_email_md, run_at, 0)
             outputs.append(str(md_path.relative_to(DIGEST_DIR)))
             send_telegram(
                 uid,
                 f"📭 Daily digest — {run_at.strftime('%a %b %d')}\n"
-                f"No priority emails in the last 24 hours.",
+                f"No priority emails in the last {lookback}.",
             )
             report_run(
                 "digest",
@@ -346,27 +356,8 @@ def main():
     if not uids:
         return
 
-    senders = load_priority_senders()
-    if not senders:
-        msg = (
-            f"No priority senders configured.\n"
-            f"Edit: {SENDERS_FILE}"
-        )
-        log.warning(msg)
-        for uid in uids:
-            send_telegram(
-                uid,
-                f"📭 Daily digest skipped — no senders configured.\n\n{msg}",
-            )
-            report_run(
-                "digest", "ok", started_at=started, email_count=0, uid=uid
-            )
-        return
-
-    log.info("Priority senders (%d): %s", len(senders), senders)
-
     for uid in uids:
-        run_digest_for_user(db, uid, senders, run_at, started)
+        run_digest_for_user(db, uid, run_at, started)
 
 
 if __name__ == "__main__":
