@@ -1,11 +1,17 @@
 """Per-user alert delivery via Telegram.
 
-`send_alert(uid, text)` and `send_document(uid, path, caption)` look up
-`users/{uid}.customerBot` and route the message through that bot if the
-customer has linked their own. Otherwise they fall back to the shared bot
-defined by env (`TELEGRAM_BOT_TOKEN` + `AUTHORIZED_CHAT_ID`) so legacy
-single-tenant deployments keep working until the customer opts in via the
-portal's "Use my own bot" wizard.
+`send_alert(uid, text)` and `send_document(uid, path, caption)` resolve
+the destination for a message in this priority order:
+
+  1. `users/{uid}.customerBot` — the user brought their own bot via the
+     portal's "Use my own bot" wizard.
+  2. `users/{uid}.telegram` — the user used the portal's "Quick link
+     (shared bot)" flow; we deliver via the shared `TELEGRAM_BOT_TOKEN`
+     using the user's own `chatId`.
+
+If neither is set, the message is dropped. We do NOT fall back to a
+global shared chat, since that would leak one user's emails into the
+operator's inbox.
 
 Reuses the service-account Firestore client from `firestore_telegram.py`.
 """
@@ -23,43 +29,47 @@ from firestore_telegram import _client as _firestore_client
 log = logging.getLogger("firestore_alerts")
 
 _SHARED_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-_SHARED_CHAT = os.environ.get("AUTHORIZED_CHAT_ID", "")
-
-
-def _shared_creds() -> tuple[str, int] | None:
-    if not _SHARED_TOKEN or not _SHARED_CHAT:
-        return None
-    try:
-        return _SHARED_TOKEN, int(_SHARED_CHAT)
-    except ValueError:
-        return None
 
 
 def _user_creds(uid: str) -> tuple[str, int] | None:
-    """Return (token, chat_id) from users/{uid}.customerBot, or None if not linked."""
+    """Return (token, chat_id) for this user's Telegram destination, or None.
+
+    Resolves customerBot first, then falls back to the Quick-Link
+    `telegram.chatId` paired with the shared bot token.
+    """
     if not uid:
         return None
     try:
         snap = _firestore_client().collection("users").document(uid).get()
     except Exception:
-        log.exception("Firestore read failed for users/%s; falling back to shared bot", uid)
+        log.exception("Firestore read failed for users/%s", uid)
         return None
     if not snap.exists:
         return None
-    bot = (snap.to_dict() or {}).get("customerBot") or {}
+    data = snap.to_dict() or {}
+
+    bot = data.get("customerBot") or {}
     token = bot.get("token")
     chat_id = bot.get("chatId")
-    if not token or chat_id is None:
-        return None
-    try:
-        return str(token), int(chat_id)
-    except (TypeError, ValueError):
-        log.warning("users/%s.customerBot has malformed token/chatId; using shared bot", uid)
-        return None
+    if token and chat_id is not None:
+        try:
+            return str(token), int(chat_id)
+        except (TypeError, ValueError):
+            log.warning("users/%s.customerBot has malformed token/chatId", uid)
+
+    tg = data.get("telegram") or {}
+    tg_chat = tg.get("chatId")
+    if _SHARED_TOKEN and tg_chat is not None:
+        try:
+            return _SHARED_TOKEN, int(tg_chat)
+        except (TypeError, ValueError):
+            log.warning("users/%s.telegram has malformed chatId", uid)
+
+    return None
 
 
 def _resolve(uid: str) -> tuple[str, int] | None:
-    return _user_creds(uid) or _shared_creds()
+    return _user_creds(uid)
 
 
 def send_alert(uid: str, text: str) -> None:
