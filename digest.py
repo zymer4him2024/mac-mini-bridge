@@ -115,9 +115,12 @@ def fetch_priority_emails(creds, senders: list, lookback: str) -> list:
 
 
 # ---------- LLM summarization ----------
-def summarize_emails(emails: list) -> tuple:
+def summarize_emails(emails: list, display_name: str = "") -> tuple:
     """Returns (telegram_short_version, full_markdown_for_file)."""
     client = OpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama-local")
+
+    persona = f"{display_name}'s executive assistant" if display_name else "an executive assistant"
+    user_ref = display_name if display_name else "the user"
 
     blocks = []
     for i, e in enumerate(emails, 1):
@@ -130,7 +133,7 @@ def summarize_emails(emails: list) -> tuple:
         )
     body_text = "\n---\n".join(blocks)
 
-    full_prompt = f"""You are Shawn's executive assistant. Summarize the following {len(emails)} priority emails Shawn received in the last 24 hours.
+    full_prompt = f"""You are {persona}. Summarize the following {len(emails)} priority emails {user_ref} received in the last 24 hours.
 
 Output format - strict Markdown:
 
@@ -151,7 +154,7 @@ For EACH email, produce this structure:
 - **Key points:**
   - 3-6 bullets covering the main content. Each bullet should be ONE specific fact, claim, request, number, or quote - not a paraphrased blob. Pull actual specifics (names, dates, numbers, dollar figures, deadlines).
 - **Asks / actions:**
-  - What they explicitly want from Shawn (or "FYI only - no action")
+  - What they explicitly want from {user_ref} (or "FYI only - no action")
   - Any embedded deadline or implied timing
 - **Suggested response:** one short line (e.g., "Reply Friday confirming the meeting", "Forward to legal", "Decline politely", "No reply needed")
 - **Urgency:** low / medium / high (with one-line justification)
@@ -298,7 +301,7 @@ def run_digest_for_user(db, uid: str, run_at: datetime, started: datetime) -> No
             )
             return
 
-        short, full = summarize_emails(emails)
+        short, full = summarize_emails(emails, cfg.get("displayName", ""))
         md_path = save_markdown(uid, full, run_at, len(emails))
         log.info("uid=%s saved digest to %s", uid, md_path)
         outputs.append(str(md_path.relative_to(DIGEST_DIR)))

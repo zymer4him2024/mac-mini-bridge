@@ -73,10 +73,10 @@ def load_user_credentials(db, uid: str) -> Credentials:
 
 
 def load_user_config(db, uid: str) -> dict:
-    """Read users/{uid}/config/main; return {senders, lookback, digestEnabled}.
+    """Read users/{uid}/config/main; return {senders, lookback, digestEnabled, displayName}.
 
-    Defaults: senders=[], lookback="1d", digestEnabled=True. Missing or
-    malformed fields fall back to defaults with a warning.
+    Defaults: senders=[], lookback="1d", digestEnabled=True, displayName="".
+    Missing or malformed fields fall back to defaults with a warning.
     """
     doc = (
         db.collection("users")
@@ -110,8 +110,15 @@ def load_user_config(db, uid: str) -> dict:
         log.warning("uid=%s digestEnabled is not bool; defaulting to True", uid)
         digest_enabled = True
 
+    display_name = data.get("userDisplayName", "")
+    if not isinstance(display_name, str):
+        log.warning("uid=%s userDisplayName is not str; defaulting to empty", uid)
+        display_name = ""
+    display_name = display_name.strip()
+
     return {
         "senders": senders,
         "lookback": lookback,
         "digestEnabled": digest_enabled,
+        "displayName": display_name,
     }
