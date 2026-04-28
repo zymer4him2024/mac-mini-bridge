@@ -7,7 +7,9 @@ Firestore) and for each runs the same pipeline:
   1. Build credentials from users/{uid}/secrets/gmail.refreshToken.
   2. Send Telegram alert with sender + subject (per-user bot).
   3. Summarize via local Ollama.
-  4. Build PDF and save to ~/email-pdfs/{uid}/.
+  4. Build PDF and save to ~/email-pdfs/{uid}/{subject-slug}/.
+     Once a subject folder reaches 5 PDFs, _summary.csv is maintained
+     alongside them as a tracker.
   5. Send PDF to Telegram as a document.
 
 One-shot: run periodically via LaunchAgent (StartInterval=300).
@@ -15,6 +17,7 @@ Dedup state lives at users/{uid}/state/watcher in Firestore.
 """
 
 import os
+import csv
 import json
 import base64
 import logging
@@ -29,6 +32,8 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).parent.resolve()
 OUTPUT_DIR = Path.home() / "email-pdfs"
 MAX_PROCESSED = 200
+SUMMARY_THRESHOLD = 5
+SUMMARY_FILENAME = "_summary.csv"
 
 # Load .env BEFORE importing firestore_alerts — that module captures
 # TELEGRAM_BOT_TOKEN / AUTHORIZED_CHAT_ID at import time for the shared-bot
@@ -37,6 +42,7 @@ load_dotenv(BASE_DIR / ".env")
 
 from firestore_activity import _client as firestore_client, report_run  # noqa: E402
 from firestore_alerts import send_alert, send_document  # noqa: E402
+from firestore_folders import upsert_folder_item  # noqa: E402
 from firestore_users import (  # noqa: E402
     GOOGLE_OAUTH_WEB_CLIENT_ID,
     GOOGLE_OAUTH_WEB_CLIENT_SECRET,
@@ -286,6 +292,77 @@ def _sender_slug(from_field: str) -> str:
     return re.sub(r"[^a-zA-Z0-9_-]", "_", addr)[:30] or "unknown"
 
 
+_REPLY_PREFIX = re.compile(r"^(re|fwd?|fw)\s*:\s*", re.I)
+
+
+def _subject_slug(subject: str) -> str:
+    s = subject or ""
+    while _REPLY_PREFIX.match(s):
+        s = _REPLY_PREFIX.sub("", s, count=1)
+    s = re.sub(r"[^a-zA-Z0-9 _-]", "", s).strip().lower()
+    s = re.sub(r"\s+", "-", s)
+    return s[:80] or "no-subject"
+
+
+def write_sidecar(pdf_path: Path, email: dict, summary: dict) -> None:
+    sidecar = pdf_path.with_suffix(".json")
+    payload = {
+        "from": email.get("from", ""),
+        "subject": email.get("subject", ""),
+        "date": email.get("date", ""),
+        "urgency": (summary.get("urgency") or "low"),
+        "key_points": summary.get("key_points") or [],
+        "asks": summary.get("asks") or [],
+        "suggested_response": summary.get("suggested_response") or "",
+        "pdf_filename": pdf_path.name,
+    }
+    sidecar.write_text(json.dumps(payload, ensure_ascii=False, indent=2))
+
+
+def update_subject_summary(subject_dir: Path) -> None:
+    """Regenerate _summary.csv when the folder has >= SUMMARY_THRESHOLD PDFs.
+
+    Scans all *.json sidecars in the folder, sorts by email date, and writes
+    the CSV atomically (tmp + rename). Idempotent — safe to call after every
+    PDF save.
+    """
+    pdfs = list(subject_dir.glob("*.pdf"))
+    if len(pdfs) < SUMMARY_THRESHOLD:
+        return
+
+    rows = []
+    for sidecar in subject_dir.glob("*.json"):
+        try:
+            data = json.loads(sidecar.read_text())
+        except (OSError, json.JSONDecodeError) as exc:
+            log.warning("skipping malformed sidecar %s: %s", sidecar, exc)
+            continue
+        rows.append(data)
+
+    rows.sort(key=lambda r: r.get("date", ""))
+
+    csv_path = subject_dir / SUMMARY_FILENAME
+    tmp_path = csv_path.with_suffix(".csv.tmp")
+    with tmp_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            "date", "from", "urgency",
+            "key_points", "asks", "suggested_response", "pdf_filename",
+        ])
+        for r in rows:
+            writer.writerow([
+                r.get("date", ""),
+                r.get("from", ""),
+                r.get("urgency", ""),
+                " | ".join(str(x) for x in (r.get("key_points") or [])),
+                " | ".join(str(x) for x in (r.get("asks") or [])),
+                r.get("suggested_response", ""),
+                r.get("pdf_filename", ""),
+            ])
+    os.replace(tmp_path, csv_path)
+    log.info("summary updated: %s (%d rows)", csv_path, len(rows))
+
+
 def process_user(
     db,
     uid: str,
@@ -369,10 +446,37 @@ def process_user(
                     run_at.strftime("%Y-%m-%d-%H%M%S")
                     + "-" + _sender_slug(email["from"]) + ".pdf"
                 )
-                pdf_path = user_pdf_dir / pdf_name
+                subject_slug = _subject_slug(email["subject"])
+                subject_dir = user_pdf_dir / subject_slug
+                subject_dir.mkdir(parents=True, exist_ok=True)
+                pdf_path = subject_dir / pdf_name
                 build_pdf(email, summary, pdf_path)
+                write_sidecar(pdf_path, email, summary)
+                update_subject_summary(subject_dir)
                 log.info("[%s] PDF saved: %s", uid, pdf_path)
                 outputs.append(pdf_name)
+
+                pdf_count = len(list(subject_dir.glob("*.pdf")))
+                has_csv = (subject_dir / SUMMARY_FILENAME).exists()
+                upsert_folder_item(
+                    firestore_client(),
+                    uid,
+                    subject=email["subject"],
+                    subject_slug=subject_slug,
+                    folder_path=str(subject_dir),
+                    item_id=pdf_path.stem,
+                    item={
+                        "from": email.get("from", ""),
+                        "date": email.get("date", ""),
+                        "urgency": (summary.get("urgency") or "low"),
+                        "key_points": summary.get("key_points") or [],
+                        "asks": summary.get("asks") or [],
+                        "suggested_response": summary.get("suggested_response") or "",
+                        "pdf_filename": pdf_path.name,
+                    },
+                    pdf_count=pdf_count,
+                    has_csv=has_csv,
+                )
 
                 urg = (summary.get("urgency") or "low").upper()
                 caption = f"{email['subject']}\nUrgency: {urg}"
@@ -445,6 +549,7 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except Exception:
+    except Exception:  # noqa: BLE001 - top-level launchd guard:
+        # log + re-raise so the LaunchAgent records a non-zero exit.
         log.exception("Watcher run failed")
         raise
