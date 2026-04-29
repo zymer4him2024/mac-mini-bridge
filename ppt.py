@@ -22,8 +22,9 @@ import traceback
 from pathlib import Path
 from datetime import datetime, timezone
 
-from firestore_activity import report_run
+from firestore_activity import get_db, report_run
 from firestore_alerts import send_alert
+from firestore_users import load_user_config
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -125,14 +126,16 @@ def fetch_emails(query: str, max_results: int = 25) -> list:
 
 
 # ---------- LLM summarization ----------
-EMAIL_PROMPT = """You are Shawn's executive assistant. Summarize the email below into structured JSON ONLY (no prose, no markdown fences).
+DEFAULT_PERSONA_LINE = "You are an executive assistant summarizing emails for the recipient."
+
+EMAIL_USER_TEMPLATE = """Summarize the email below into structured JSON ONLY (no prose, no markdown fences).
 
 Required JSON shape:
 {{
-  "context": ["1-2 short bullets giving who they are / why writing"],
-  "key_points": ["3-6 bullets of specific facts, claims, requests, numbers, quotes from the email"],
-  "asks": ["bullets of what they want from Shawn, or one item 'FYI only - no action'"],
-  "suggested_response": "one short line e.g. 'Reply Friday', 'No reply needed'",
+  "context": [1-2 short strings describing who the sender is and why they are writing],
+  "key_points": [up to {kp_max} short strings, each one specific fact, claim, request, number, or quote from the email],
+  "asks": [up to {asks_max} short strings describing what the sender wants from the recipient; if no action is requested, return a single string stating that],
+  "suggested_response": "one short string describing what to do next, or that no reply is needed",
   "urgency": "low" | "med" | "high"
 }}
 
@@ -150,6 +153,13 @@ Date: {date}
 """
 
 
+def _build_system_message(cfg: dict) -> str:
+    extra = (cfg.get("summaryPersona") or "").strip()
+    if extra:
+        return f"{DEFAULT_PERSONA_LINE}\n\nAdditional instructions: {extra}"
+    return DEFAULT_PERSONA_LINE
+
+
 def _strip_fences(text: str) -> str:
     text = text.strip()
     if text.startswith("```"):
@@ -162,8 +172,10 @@ def _strip_fences(text: str) -> str:
     return text
 
 
-def summarize_email(client: OpenAI, email: dict) -> dict:
-    prompt = EMAIL_PROMPT.format(
+def summarize_email(client: OpenAI, email: dict, cfg: dict, system_msg: str) -> dict:
+    user_msg = EMAIL_USER_TEMPLATE.format(
+        kp_max=cfg.get("summaryKeyPointsMax", 6),
+        asks_max=cfg.get("summaryAsksMax", 4),
         from_=email["from"],
         subject=email["subject"],
         date=email["date"],
@@ -171,7 +183,10 @@ def summarize_email(client: OpenAI, email: dict) -> dict:
     )
     resp = client.chat.completions.create(
         model=OLLAMA_MODEL,
-        messages=[{"role": "user", "content": prompt}],
+        messages=[
+            {"role": "system", "content": system_msg},
+            {"role": "user", "content": user_msg},
+        ],
         temperature=0.3,
     )
     text = _strip_fences(resp.choices[0].message.content or "")
@@ -189,19 +204,22 @@ def summarize_email(client: OpenAI, email: dict) -> dict:
     return data
 
 
-def top3_summary(client: OpenAI, summarized: list) -> list:
+def top3_summary(client: OpenAI, summarized: list, system_msg: str) -> list:
     blocks = []
     for s in summarized:
         kp = "; ".join(s["data"].get("key_points", [])[:3])
         blocks.append(f"- {s['email']['from']}: {s['email']['subject']} | key: {kp}")
-    prompt = (
-        "Given the email summaries below, return EXACTLY 3 bullets capturing the "
-        "most important takeaways across all emails. Output ONLY a JSON array of "
-        "3 strings. No prose, no fences.\n\n" + "\n".join(blocks)
+    user_msg = (
+        "Given the email summaries below, return EXACTLY 3 short strings capturing "
+        "the most important takeaways across all emails. Output ONLY a JSON array "
+        "of 3 strings. No prose, no fences.\n\n" + "\n".join(blocks)
     )
     resp = client.chat.completions.create(
         model=OLLAMA_MODEL,
-        messages=[{"role": "user", "content": prompt}],
+        messages=[
+            {"role": "system", "content": system_msg},
+            {"role": "user", "content": user_msg},
+        ],
         temperature=0.3,
     )
     text = _strip_fences(resp.choices[0].message.content or "")
@@ -346,14 +364,24 @@ def main():
 
         client = OpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama-local")
 
+        cfg: dict = {}
+        if USER_UID:
+            try:
+                cfg = load_user_config(get_db(), USER_UID)
+            except Exception:  # noqa: BLE001 - CLI tool degrades gracefully
+                # without a config; persona/limits fall back to defaults rather
+                # than aborting the deck build.
+                log.warning("uid=%s failed to load user config; using defaults", USER_UID)
+        system_msg = _build_system_message(cfg)
+
         summarized = []
         for e in emails:
             log.info(f"Summarizing: {e['subject'][:60]}")
-            data = summarize_email(client, e)
+            data = summarize_email(client, e, cfg, system_msg)
             summarized.append({"email": e, "data": data})
 
         log.info("Generating Top 3")
-        top3 = top3_summary(client, summarized)
+        top3 = top3_summary(client, summarized, system_msg)
 
         prs = build_deck(query, top3, summarized, run_at)
         filename = run_at.strftime("%Y-%m-%d-%H%M%S") + ".pptx"

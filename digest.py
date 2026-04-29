@@ -117,12 +117,20 @@ def fetch_priority_emails(creds, senders: list, lookback: str) -> list:
 
 
 # ---------- LLM summarization ----------
-def summarize_emails(emails: list, display_name: str = "") -> tuple:
+def summarize_emails(emails: list, cfg: dict | None = None) -> tuple:
     """Returns (telegram_short_version, full_markdown_for_file)."""
     client = OpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama-local")
 
+    cfg = cfg or {}
+    display_name = (cfg.get("displayName") or "").strip()
+    extra_instructions = (cfg.get("summaryPersona") or "").strip()
+
     persona = f"{display_name}'s executive assistant" if display_name else "an executive assistant"
     user_ref = display_name if display_name else "the user"
+
+    system_msg = f"You are {persona}."
+    if extra_instructions:
+        system_msg += f"\n\nAdditional instructions: {extra_instructions}"
 
     blocks = []
     for i, e in enumerate(emails, 1):
@@ -135,7 +143,7 @@ def summarize_emails(emails: list, display_name: str = "") -> tuple:
         )
     body_text = "\n---\n".join(blocks)
 
-    full_prompt = f"""You are {persona}. Summarize the following {len(emails)} priority emails {user_ref} received in the last 24 hours.
+    full_prompt = f"""Summarize the following {len(emails)} priority emails {user_ref} received in the last 24 hours.
 
 Output format - strict Markdown:
 
@@ -156,9 +164,9 @@ For EACH email, produce this structure:
 - **Key points:**
   - 3-6 bullets covering the main content. Each bullet should be ONE specific fact, claim, request, number, or quote - not a paraphrased blob. Pull actual specifics (names, dates, numbers, dollar figures, deadlines).
 - **Asks / actions:**
-  - What they explicitly want from {user_ref} (or "FYI only - no action")
+  - What they explicitly want from {user_ref}; if no action is requested, state that explicitly.
   - Any embedded deadline or implied timing
-- **Suggested response:** one short line (e.g., "Reply Friday confirming the meeting", "Forward to legal", "Decline politely", "No reply needed")
+- **Suggested response:** one short line describing what to do next, or that no reply is needed.
 - **Urgency:** low / medium / high (with one-line justification)
 
 Style:
@@ -175,7 +183,10 @@ EMAILS TO SUMMARIZE:
 
     resp = client.chat.completions.create(
         model=OLLAMA_MODEL,
-        messages=[{"role": "user", "content": full_prompt}],
+        messages=[
+            {"role": "system", "content": system_msg},
+            {"role": "user", "content": full_prompt},
+        ],
         temperature=0.3,
     )
     full_markdown = resp.choices[0].message.content or "(no summary generated)"
@@ -206,7 +217,10 @@ DIGEST TO COMPRESS:
 
     resp2 = client.chat.completions.create(
         model=OLLAMA_MODEL,
-        messages=[{"role": "user", "content": short_prompt}],
+        messages=[
+            {"role": "system", "content": system_msg},
+            {"role": "user", "content": short_prompt},
+        ],
         temperature=0.3,
     )
     short_telegram = resp2.choices[0].message.content or "(no short summary)"
@@ -303,7 +317,7 @@ def run_digest_for_user(db, uid: str, run_at: datetime, started: datetime) -> No
             )
             return
 
-        short, full = summarize_emails(emails, cfg.get("displayName", ""))
+        short, full = summarize_emails(emails, cfg)
         md_path = save_markdown(uid, full, run_at, len(emails))
         log.info("uid=%s saved digest to %s", uid, md_path)
         outputs.append(str(md_path.relative_to(DIGEST_DIR)))

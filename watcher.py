@@ -185,16 +185,16 @@ def fetch_new_emails(creds: Credentials, senders: list, lookback: str) -> list:
 # ---------- LLM summarization ----------
 DEFAULT_PERSONA_LINE = "You are an executive assistant summarizing emails for the recipient."
 
-EMAIL_PROMPT = """{persona_line} Summarize the email below into structured JSON ONLY (no prose, no markdown fences).
+EMAIL_USER_TEMPLATE = """Summarize the email below into structured JSON ONLY (no prose, no markdown fences).
 
 Required JSON shape:
-{{{{
-  "context": ["1-2 short bullets giving who they are / why writing"],
-  "key_points": ["up to {kp_max} bullets of specific facts, claims, requests, numbers, quotes from the email"],
-  "asks": ["up to {asks_max} bullets of what they want from the recipient, or one item 'FYI only - no action'"],
-  "suggested_response": "one short line e.g. 'Reply Friday', 'No reply needed'",
+{{
+  "context": [1-2 short strings describing who the sender is and why they are writing],
+  "key_points": [up to {kp_max} short strings, each one specific fact, claim, request, number, or quote from the email],
+  "asks": [up to {asks_max} short strings describing what the sender wants from the recipient; if no action is requested, return a single string stating that],
+  "suggested_response": "one short string describing what to do next, or that no reply is needed",
   "urgency": "low" | "med" | "high"
-}}}}
+}}
 
 Style:
 - Specific over generic. Pull real numbers, names, dates.
@@ -202,24 +202,19 @@ Style:
 - Output ONLY the JSON object.
 
 EMAIL:
-From: {{from_}}
-Subject: {{subject}}
-Date: {{date}}
+From: {from_}
+Subject: {subject}
+Date: {date}
 
-{{body}}
+{body}
 """
 
 
-def _build_email_template(cfg: dict) -> str:
-    persona = (cfg.get("summaryPersona") or "").strip()
-    persona_line = persona if persona else DEFAULT_PERSONA_LINE
-    kp_max = cfg.get("summaryKeyPointsMax", 6)
-    asks_max = cfg.get("summaryAsksMax", 4)
-    return EMAIL_PROMPT.format(
-        persona_line=persona_line,
-        kp_max=kp_max,
-        asks_max=asks_max,
-    )
+def _build_system_message(cfg: dict) -> str:
+    extra = (cfg.get("summaryPersona") or "").strip()
+    if extra:
+        return f"{DEFAULT_PERSONA_LINE}\n\nAdditional instructions: {extra}"
+    return DEFAULT_PERSONA_LINE
 
 
 def _strip_fences(text: str) -> str:
@@ -258,8 +253,10 @@ def _normalize_summary(data) -> dict:
 
 
 def summarize_email(client: OpenAI, email: dict, cfg: dict) -> dict:
-    template = _build_email_template(cfg)
-    prompt = template.format(
+    system_msg = _build_system_message(cfg)
+    user_msg = EMAIL_USER_TEMPLATE.format(
+        kp_max=cfg.get("summaryKeyPointsMax", 6),
+        asks_max=cfg.get("summaryAsksMax", 4),
         from_=email["from"],
         subject=email["subject"],
         date=email["date"],
@@ -267,7 +264,10 @@ def summarize_email(client: OpenAI, email: dict, cfg: dict) -> dict:
     )
     resp = client.chat.completions.create(
         model=OLLAMA_MODEL,
-        messages=[{"role": "user", "content": prompt}],
+        messages=[
+            {"role": "system", "content": system_msg},
+            {"role": "user", "content": user_msg},
+        ],
         temperature=0.3,
     )
     text = _strip_fences(resp.choices[0].message.content or "")
