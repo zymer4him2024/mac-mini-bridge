@@ -3,13 +3,15 @@
 
 Verifies:
   1. _build_system_message produces correct shape with/without persona.
-  2. Live: Korean email + persona='use same language' → JSON values in Korean.
-  3. Live: English email + no persona → JSON values in English (control).
+  2. mime_extract: charset-aware body decode + RFC2047 header decode.
+  3. Live: Korean email + persona='use same language' → JSON values in Korean.
+  4. Live: English email + no persona → JSON values in English (control).
 
 Live tests hit Ollama at OLLAMA_BASE_URL with OLLAMA_MODEL.
 Run: python3 test_persona_summary.py
 """
 
+import base64
 import json
 import os
 import sys
@@ -23,6 +25,7 @@ load_dotenv(BASE_DIR / ".env")
 from openai import OpenAI  # noqa: E402
 
 import watcher  # noqa: E402
+from mime_extract import extract_body, decode_header_value  # noqa: E402
 
 
 def section(title: str) -> None:
@@ -30,6 +33,96 @@ def section(title: str) -> None:
     print("=" * 70)
     print(title)
     print("=" * 70)
+
+
+def _b64url(data: bytes) -> str:
+    """Gmail returns urlsafe-b64 *with* padding."""
+    return base64.urlsafe_b64encode(data).decode("ascii")
+
+
+def test_unit_mime_extract() -> None:
+    section("UNIT: mime_extract")
+
+    # 1. multipart/alternative: text/plain (UTF-8) + text/html → plain wins
+    plain_payload = {
+        "mimeType": "multipart/alternative",
+        "parts": [
+            {
+                "mimeType": "text/plain",
+                "headers": [{"name": "Content-Type", "value": "text/plain; charset=utf-8"}],
+                "body": {"data": _b64url("Hello world".encode("utf-8"))},
+            },
+            {
+                "mimeType": "text/html",
+                "headers": [{"name": "Content-Type", "value": "text/html; charset=utf-8"}],
+                "body": {"data": _b64url(b"<p>Hello <b>world</b></p>")},
+            },
+        ],
+    }
+    out = extract_body(plain_payload)
+    assert out.strip() == "Hello world", f"plain-preferred: got {out!r}"
+    print("plain-preferred: PASS")
+
+    # 2. text/plain in EUC-KR → returns Korean unicode
+    korean = "안녕하세요. 한국어 테스트입니다."
+    euckr_payload = {
+        "mimeType": "text/plain",
+        "headers": [{"name": "Content-Type", "value": "text/plain; charset=euc-kr"}],
+        "body": {"data": _b64url(korean.encode("euc_kr"))},
+    }
+    out = extract_body(euckr_payload)
+    assert out == korean, f"euc-kr decode: got {out!r}"
+    print("euc-kr decode: PASS")
+
+    # 3. text/plain in CP949 (declared as ks_c_5601-1987) → returns Korean unicode
+    cp949_payload = {
+        "mimeType": "text/plain",
+        "headers": [{"name": "Content-Type", "value": 'text/plain; charset="ks_c_5601-1987"'}],
+        "body": {"data": _b64url(korean.encode("cp949"))},
+    }
+    out = extract_body(cp949_payload)
+    assert out == korean, f"ks_c_5601-1987 decode: got {out!r}"
+    print("ks_c_5601-1987 alias → cp949: PASS")
+
+    # 4. HTML-only payload → tags stripped, entities decoded
+    html_only_payload = {
+        "mimeType": "text/html",
+        "headers": [{"name": "Content-Type", "value": "text/html; charset=utf-8"}],
+        "body": {
+            "data": _b64url(
+                b"<html><body><p>Hello&nbsp;<b>world</b></p>"
+                b"<script>alert('x')</script>"
+                b"<p>Line two &amp; more</p></body></html>"
+            ),
+        },
+    }
+    out = extract_body(html_only_payload)
+    assert "Hello" in out and "world" in out, f"html strip: got {out!r}"
+    assert "alert" not in out, f"script not stripped: {out!r}"
+    assert "&amp;" not in out and "&" in out, f"entities not decoded: {out!r}"
+    assert "<" not in out and ">" not in out, f"tags not stripped: {out!r}"
+    print("html-only strip + entity decode: PASS")
+
+    # 5. RFC 2047 header decode: EUC-KR encoded subject
+    encoded_subject = "=?euc-kr?B?" + base64.b64encode(
+        "다음 주 미팅".encode("euc_kr")
+    ).decode("ascii") + "?="
+    decoded = decode_header_value(encoded_subject)
+    assert decoded == "다음 주 미팅", f"rfc2047 euc-kr: got {decoded!r}"
+    print("rfc2047 euc-kr subject: PASS")
+
+    # 6. RFC 2047 header decode: UTF-8 encoded From with display name
+    encoded_from = "=?UTF-8?B?" + base64.b64encode(
+        "김지훈".encode("utf-8")
+    ).decode("ascii") + "?= <jihoon@example.com>"
+    decoded = decode_header_value(encoded_from)
+    assert "김지훈" in decoded and "jihoon@example.com" in decoded, f"rfc2047 utf-8: got {decoded!r}"
+    print("rfc2047 utf-8 from: PASS")
+
+    # 7. Plain ASCII subject (no encoding) → passthrough
+    assert decode_header_value("Plain Subject") == "Plain Subject"
+    assert decode_header_value("") == ""
+    print("rfc2047 passthrough: PASS")
 
 
 def test_unit_system_message() -> None:
@@ -105,6 +198,7 @@ def test_live_english_no_persona(client: OpenAI) -> None:
 
 
 def main() -> int:
+    test_unit_mime_extract()
     test_unit_system_message()
 
     base_url = os.environ.get("OLLAMA_BASE_URL")

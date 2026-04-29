@@ -13,7 +13,6 @@ Designed to be run by launchd at 7:00 AM daily.
 """
 
 import os
-import base64
 import logging
 import traceback
 from pathlib import Path
@@ -36,6 +35,8 @@ from firestore_users import (  # noqa: E402
     load_user_config,
     load_user_credentials,
 )
+from mime_extract import extract_body, decode_header_value  # noqa: E402
+from lang_hint import detect_dominant_script, language_directive  # noqa: E402
 
 from openai import OpenAI  # noqa: E402
 from google.auth.exceptions import RefreshError  # noqa: E402
@@ -59,23 +60,6 @@ install_redaction_filter(logging.getLogger())
 
 
 # ---------- Gmail helpers ----------
-def _extract_body(payload) -> str:
-    if payload.get("body", {}).get("data"):
-        return base64.urlsafe_b64decode(payload["body"]["data"]).decode(
-            "utf-8", errors="replace"
-        )
-    for part in payload.get("parts", []):
-        if part.get("mimeType") == "text/plain" and part["body"].get("data"):
-            return base64.urlsafe_b64decode(part["body"]["data"]).decode(
-                "utf-8", errors="replace"
-            )
-    for part in payload.get("parts", []):
-        text = _extract_body(part)
-        if text:
-            return text
-    return ""
-
-
 def fetch_priority_emails(creds, senders: list, lookback: str) -> list:
     """Fetch emails from priority senders within the per-user lookback window."""
     service = build("gmail", "v1", credentials=creds)
@@ -102,12 +86,12 @@ def fetch_priority_emails(creds, senders: list, lookback: str) -> list:
             .execute()
         )
         headers = {h["name"]: h["value"] for h in msg["payload"]["headers"]}
-        body = _extract_body(msg["payload"])[:4000]  # cap body to keep prompt small
+        body = extract_body(msg["payload"])[:4000]  # cap body to keep prompt small
         emails.append(
             {
                 "id": m["id"],
-                "from": headers.get("From", ""),
-                "subject": headers.get("Subject", ""),
+                "from": decode_header_value(headers.get("From", "")),
+                "subject": decode_header_value(headers.get("Subject", "")),
                 "date": headers.get("Date", ""),
                 "snippet": msg.get("snippet", ""),
                 "body": body,
@@ -142,6 +126,7 @@ def summarize_emails(emails: list, cfg: dict | None = None) -> tuple:
             f"{e['body']}\n"
         )
     body_text = "\n---\n".join(blocks)
+    directive = language_directive(detect_dominant_script(body_text))
 
     full_prompt = f"""Summarize the following {len(emails)} priority emails {user_ref} received in the last 24 hours.
 
@@ -181,6 +166,9 @@ EMAILS TO SUMMARIZE:
 {body_text}
 """
 
+    if directive:
+        full_prompt = f"{full_prompt}\n\n{directive}"
+
     resp = client.chat.completions.create(
         model=OLLAMA_MODEL,
         messages=[
@@ -214,6 +202,9 @@ DIGEST TO COMPRESS:
 
 {full_markdown}
 """
+
+    if directive:
+        short_prompt = f"{short_prompt}\n\n{directive}"
 
     resp2 = client.chat.completions.create(
         model=OLLAMA_MODEL,

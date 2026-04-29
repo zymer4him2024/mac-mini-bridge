@@ -16,7 +16,6 @@ Pipeline:
 import os
 import sys
 import json
-import base64
 import logging
 import traceback
 from pathlib import Path
@@ -25,6 +24,8 @@ from datetime import datetime, timezone
 from firestore_activity import get_db, report_run
 from firestore_alerts import send_alert
 from firestore_users import load_user_config
+from mime_extract import extract_body, decode_header_value
+from lang_hint import detect_dominant_script, language_directive
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -76,23 +77,6 @@ def get_gmail_service():
     return build("gmail", "v1", credentials=creds)
 
 
-def _extract_body(payload) -> str:
-    if payload.get("body", {}).get("data"):
-        return base64.urlsafe_b64decode(payload["body"]["data"]).decode(
-            "utf-8", errors="replace"
-        )
-    for part in payload.get("parts", []):
-        if part.get("mimeType") == "text/plain" and part["body"].get("data"):
-            return base64.urlsafe_b64decode(part["body"]["data"]).decode(
-                "utf-8", errors="replace"
-            )
-    for part in payload.get("parts", []):
-        text = _extract_body(part)
-        if text:
-            return text
-    return ""
-
-
 def fetch_emails(query: str, max_results: int = 25) -> list:
     service = get_gmail_service()
     log.info(f"Gmail query: {query}")
@@ -112,11 +96,11 @@ def fetch_emails(query: str, max_results: int = 25) -> list:
             .execute()
         )
         headers = {h["name"]: h["value"] for h in msg["payload"]["headers"]}
-        body = _extract_body(msg["payload"])[:4000]
+        body = extract_body(msg["payload"])[:4000]
         emails.append(
             {
-                "from": headers.get("From", ""),
-                "subject": headers.get("Subject", ""),
+                "from": decode_header_value(headers.get("From", "")),
+                "subject": decode_header_value(headers.get("Subject", "")),
                 "date": headers.get("Date", ""),
                 "snippet": msg.get("snippet", ""),
                 "body": body,
@@ -181,6 +165,9 @@ def summarize_email(client: OpenAI, email: dict, cfg: dict, system_msg: str) -> 
         date=email["date"],
         body=email["body"],
     )
+    directive = language_directive(detect_dominant_script(email["body"]))
+    if directive:
+        user_msg = f"{user_msg}\n\n{directive}"
     resp = client.chat.completions.create(
         model=OLLAMA_MODEL,
         messages=[

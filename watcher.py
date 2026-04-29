@@ -20,7 +20,6 @@ import os
 import csv
 import fcntl
 import json
-import base64
 import logging
 import re
 import time
@@ -45,7 +44,10 @@ load_dotenv(BASE_DIR / ".env")
 from firestore_activity import get_db, report_run  # noqa: E402
 from firestore_alerts import send_alert, send_document  # noqa: E402
 from firestore_folders import upsert_folder_item  # noqa: E402
+from firebase_storage import upload_pdf, upload_summary_csv  # noqa: E402
 from firestore_leads import upsert_lead  # noqa: E402
+from mime_extract import extract_body, decode_header_value  # noqa: E402
+from lang_hint import detect_dominant_script, language_directive  # noqa: E402
 from firestore_state import (  # noqa: E402
     MAX_PROCESSED,
     load_user_last_run_at,
@@ -74,6 +76,8 @@ from reportlab.lib.pagesizes import letter  # noqa: E402
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle  # noqa: E402
 from reportlab.lib.units import inch  # noqa: E402
 from reportlab.lib.colors import HexColor  # noqa: E402
+from reportlab.pdfbase import pdfmetrics  # noqa: E402
+from reportlab.pdfbase.cidfonts import UnicodeCIDFont  # noqa: E402
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak  # noqa: E402
 
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")
@@ -93,27 +97,6 @@ install_redaction_filter(logging.getLogger())
 
 
 # ---------- Gmail helpers ----------
-def _extract_body(payload) -> str:
-    if not isinstance(payload, dict):
-        return ""
-    body_data = (payload.get("body") or {}).get("data")
-    if body_data:
-        return base64.urlsafe_b64decode(body_data).decode(
-            "utf-8", errors="replace"
-        )
-    for part in payload.get("parts") or []:
-        part_data = (part.get("body") or {}).get("data")
-        if part.get("mimeType") == "text/plain" and part_data:
-            return base64.urlsafe_b64decode(part_data).decode(
-                "utf-8", errors="replace"
-            )
-    for part in payload.get("parts") or []:
-        text = _extract_body(part)
-        if text:
-            return text
-    return ""
-
-
 _GMAIL_RETRY_STATUSES = {429, 500, 502, 503, 504}
 _GMAIL_RETRY_BACKOFFS = (1, 4)
 
@@ -169,12 +152,12 @@ def fetch_new_emails(creds: Credentials, senders: list, lookback: str) -> list:
             h.get("name", ""): h.get("value", "")
             for h in payload.get("headers") or []
         }
-        body = _extract_body(payload)[:8000]
+        body = extract_body(payload)[:8000]
         emails.append(
             {
                 "id": m["id"],
-                "from": headers.get("From", ""),
-                "subject": headers.get("Subject", "(no subject)"),
+                "from": decode_header_value(headers.get("From", "")),
+                "subject": decode_header_value(headers.get("Subject", "")) or "(no subject)",
                 "date": headers.get("Date", ""),
                 "body": body,
             }
@@ -262,6 +245,9 @@ def summarize_email(client: OpenAI, email: dict, cfg: dict) -> dict:
         date=email["date"],
         body=email["body"],
     )
+    directive = language_directive(detect_dominant_script(email["body"]))
+    if directive:
+        user_msg = f"{user_msg}\n\n{directive}"
     resp = client.chat.completions.create(
         model=OLLAMA_MODEL,
         messages=[
@@ -287,12 +273,57 @@ def summarize_email(client: OpenAI, email: dict, cfg: dict) -> dict:
 # ---------- PDF builder ----------
 URGENCY_HEX = {"low": "#34C759", "med": "#FF9F0A", "high": "#FF3B30"}
 
+# ReportLab's default Helvetica/Times faces have no CJK glyphs, so a Korean
+# email previously rendered as boxes. Register the bundled Adobe CID fonts
+# at first PDF build and choose one based on the email's dominant script.
+_CJK_FONTS_REGISTERED = False
+_SCRIPT_TO_PDF_FONT = {
+    "korean": "HYSMyeongJo-Medium",
+    "japanese": "HeiseiKakuGo-W5",
+    "chinese": "STSong-Light",
+}
+
+
+def _ensure_cjk_fonts() -> None:
+    global _CJK_FONTS_REGISTERED
+    if _CJK_FONTS_REGISTERED:
+        return
+    try:
+        for face in _SCRIPT_TO_PDF_FONT.values():
+            pdfmetrics.registerFont(UnicodeCIDFont(face))
+            # CID fonts ship single-weight; map <b>/<i> back to the same face
+            # so Paragraph's <b>...</b> doesn't warn about a missing variant.
+            pdfmetrics.registerFontFamily(
+                face, normal=face, bold=face, italic=face, boldItalic=face,
+            )
+        _CJK_FONTS_REGISTERED = True
+    except Exception as exc:  # noqa: BLE001 - PDF still builds in Latin
+        log.warning(
+            "CJK font registration failed: %s — CJK glyphs will render as boxes",
+            exc,
+        )
+
+
+def _pick_pdf_font(email: dict, summary: dict) -> str | None:
+    """CJK font name when content is dominantly CJK; None for Latin/unknown."""
+    parts = [
+        email.get("subject") or "",
+        email.get("body") or "",
+        " ".join(str(x) for x in (summary.get("key_points") or [])),
+        " ".join(str(x) for x in (summary.get("asks") or [])),
+        summary.get("suggested_response") or "",
+    ]
+    return _SCRIPT_TO_PDF_FONT.get(detect_dominant_script(" ".join(parts)))
+
 
 def _html_escape(s: str) -> str:
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
 def build_pdf(email: dict, summary: dict, out_path: Path):
+    _ensure_cjk_fonts()
+    cjk_font = _pick_pdf_font(email, summary)
+
     doc = SimpleDocTemplate(
         str(out_path),
         pagesize=letter,
@@ -302,9 +333,16 @@ def build_pdf(email: dict, summary: dict, out_path: Path):
         rightMargin=0.75 * inch,
     )
     styles = getSampleStyleSheet()
-    h1 = ParagraphStyle("h1", parent=styles["Heading1"], fontSize=20, spaceAfter=6)
-    h2 = ParagraphStyle("h2", parent=styles["Heading2"], fontSize=14, spaceAfter=4, spaceBefore=10)
-    body_style = styles["BodyText"]
+    h1_kwargs = {"parent": styles["Heading1"], "fontSize": 20, "spaceAfter": 6}
+    h2_kwargs = {"parent": styles["Heading2"], "fontSize": 14, "spaceAfter": 4, "spaceBefore": 10}
+    if cjk_font:
+        h1_kwargs["fontName"] = cjk_font
+        h2_kwargs["fontName"] = cjk_font
+        body_style = ParagraphStyle("body", parent=styles["BodyText"], fontName=cjk_font)
+    else:
+        body_style = styles["BodyText"]
+    h1 = ParagraphStyle("h1", **h1_kwargs)
+    h2 = ParagraphStyle("h2", **h2_kwargs)
     meta = ParagraphStyle("meta", parent=body_style, fontSize=10, textColor=HexColor("#48484A"))
 
     urg = (summary.get("urgency") or "low").lower()
@@ -594,6 +632,14 @@ def process_user(
 
                 pdf_count = len(list(subject_dir.glob("*.pdf")))
                 has_csv = (subject_dir / SUMMARY_FILENAME).exists()
+
+                pdf_storage_path = upload_pdf(uid, subject_slug, pdf_path)
+                summary_csv_storage_path = (
+                    upload_summary_csv(uid, subject_slug, subject_dir / SUMMARY_FILENAME)
+                    if has_csv
+                    else None
+                )
+
                 upsert_folder_item(
                     get_db(),
                     uid,
@@ -612,6 +658,8 @@ def process_user(
                     },
                     pdf_count=pdf_count,
                     has_csv=has_csv,
+                    pdf_storage_path=pdf_storage_path,
+                    summary_csv_storage_path=summary_csv_storage_path,
                 )
 
                 sender_name, sender_email = parseaddr(email.get("from", ""))
