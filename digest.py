@@ -29,7 +29,7 @@ DIGEST_DIR = Path.home() / "email-digests"
 # capture env vars at import time. See watcher.py for the same pattern.
 load_dotenv(BASE_DIR / ".env")
 
-from firestore_activity import _client as firestore_client, report_run  # noqa: E402
+from firestore_activity import get_db, report_run  # noqa: E402
 from firestore_alerts import send_alert  # noqa: E402
 from firestore_users import (  # noqa: E402
     enumerate_linked_users,
@@ -356,7 +356,7 @@ def main():
     log.info("=" * 60)
     log.info("Starting daily email digest (multi-tenant)")
 
-    db = firestore_client()
+    db = get_db()
     uids = enumerate_linked_users(db)
     log.info("enumerated %d users with gmail set: %s", len(uids), uids)
     if not uids:

@@ -19,11 +19,9 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-import firebase_admin
-from firebase_admin import credentials, firestore
 from google.api_core import exceptions as gax
 
-from firestore_activity import report_run
+from firestore_activity import get_db, report_run
 from firestore_alerts import send_alert
 from firestore_audit import record_audit
 
@@ -33,10 +31,8 @@ load_dotenv(BASE_DIR / ".env")
 TELEGRAM_BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 AUTHORIZED_CHAT_ID = int(os.environ["AUTHORIZED_CHAT_ID"])
 
-SERVICE_ACCOUNT = BASE_DIR / "firebase-service-account.json"
 SENDERS_FILE = BASE_DIR / "priority_senders.txt"
 WATCHER_CONFIG = BASE_DIR / "watcher_config.json"
-FIRESTORE_DB_ID = os.environ.get("FIRESTORE_DATABASE_ID", "email2ppt")
 USER_UID = os.environ.get("EMAIL2PPT_USER_UID", "").strip()
 if not USER_UID:
     print(
@@ -85,12 +81,11 @@ def read_local_lookback() -> str:
 
 
 def fetch_remote() -> dict | None:
-    if not SERVICE_ACCOUNT.exists():
-        log.error("service account missing: %s", SERVICE_ACCOUNT)
+    try:
+        db = get_db()
+    except FileNotFoundError as exc:
+        log.error("%s", exc)
         sys.exit(1)
-    if not firebase_admin._apps:
-        firebase_admin.initialize_app(credentials.Certificate(str(SERVICE_ACCOUNT)))
-    db = firestore.client(database_id=FIRESTORE_DB_ID)
     doc_ref = (
         db.collection("users")
         .document(USER_UID)

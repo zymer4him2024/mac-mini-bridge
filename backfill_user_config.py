@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).parent.resolve()
 load_dotenv(BASE_DIR / ".env")
 
-from firestore_activity import _client as firestore_client  # noqa: E402
+from firestore_activity import get_db  # noqa: E402
 from firestore_users import enumerate_linked_users  # noqa: E402
 
 SENDERS_FILE = BASE_DIR / "priority_senders.txt"
@@ -57,7 +57,7 @@ def main(argv: list[str]) -> int:
     print(f"Local lookback: {lookback}")
     print()
 
-    db = firestore_client()
+    db = get_db()
     uids = enumerate_linked_users(db)
     print(f"Users with gmail.email set ({len(uids)}): {uids}")
     print()

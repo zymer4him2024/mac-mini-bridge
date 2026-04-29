@@ -31,7 +31,13 @@ TTL_DAYS = 30
 log = logging.getLogger("firestore_activity")
 
 
-def _client():
+def get_db():
+    """Shared Firestore client factory.
+
+    All top-level pipeline scripts (watcher, digest, ppt, config_sync) reach
+    Firestore through this single function so the SDK init lives in one place.
+    Idempotent: reuses the existing firebase_admin app if already initialized.
+    """
     if not SERVICE_ACCOUNT.exists():
         raise FileNotFoundError(f"service account missing: {SERVICE_ACCOUNT}")
     if not firebase_admin._apps:
@@ -90,7 +96,7 @@ def report_run(
     }
 
     try:
-        db = _client()
+        db = get_db()
         db.collection("users").document(user_uid).collection(
             "activity"
         ).add(record)

@@ -34,7 +34,6 @@ from dotenv import load_dotenv
 # ---------- Config ----------
 BASE_DIR = Path(__file__).parent.resolve()
 OUTPUT_DIR = Path.home() / "email-pdfs"
-MAX_PROCESSED = 200
 SUMMARY_THRESHOLD = 5
 SUMMARY_FILENAME = "_summary.csv"
 
@@ -43,10 +42,18 @@ SUMMARY_FILENAME = "_summary.csv"
 # fallback. Importing it before load_dotenv leaves both as empty strings.
 load_dotenv(BASE_DIR / ".env")
 
-from firestore_activity import _client as firestore_client, report_run  # noqa: E402
+from firestore_activity import get_db, report_run  # noqa: E402
 from firestore_alerts import send_alert, send_document  # noqa: E402
 from firestore_folders import upsert_folder_item  # noqa: E402
 from firestore_leads import upsert_lead  # noqa: E402
+from firestore_state import (  # noqa: E402
+    MAX_PROCESSED,
+    load_user_last_run_at,
+    load_user_self_email,
+    load_user_state,
+    save_user_last_run_at,
+    save_user_state,
+)
 from firestore_users import (  # noqa: E402
     GOOGLE_OAUTH_WEB_CLIENT_ID,
     GOOGLE_OAUTH_WEB_CLIENT_SECRET,
@@ -173,79 +180,6 @@ def fetch_new_emails(creds: Credentials, senders: list, lookback: str) -> list:
             }
         )
     return emails
-
-
-# ---------- State (dedup) — per-user, Firestore-backed ----------
-def load_user_state(db, uid: str) -> list[str]:
-    doc = (
-        db.collection("users")
-        .document(uid)
-        .collection("state")
-        .document("watcher")
-        .get()
-    )
-    if not doc.exists:
-        return []
-    data = doc.to_dict() or {}
-    ids = data.get("processedIds") or []
-    return [str(x) for x in ids]
-
-
-def load_user_last_run_at(db, uid: str) -> datetime | None:
-    """Return the last time the watcher actually processed this user, or None.
-
-    Returns timezone-aware UTC datetime (Firestore timestamps deserialize
-    as UTC-aware) or None if the user has never been processed.
-    """
-    doc = (
-        db.collection("users")
-        .document(uid)
-        .collection("state")
-        .document("watcher")
-        .get()
-    )
-    if not doc.exists:
-        return None
-    data = doc.to_dict() or {}
-    last = data.get("lastRunAt")
-    if last is None:
-        return None
-    if isinstance(last, datetime):
-        return last
-    return None
-
-
-def save_user_state(db, uid: str, processed_ids: list[str]) -> None:
-    db.collection("users").document(uid).collection("state").document(
-        "watcher"
-    ).set(
-        {
-            "processedIds": processed_ids[-MAX_PROCESSED:],
-            "updatedAt": datetime.now(timezone.utc),
-        },
-        merge=True,
-    )
-
-
-def save_user_last_run_at(db, uid: str, when: datetime) -> None:
-    """Mark the user as having been processed at `when` (UTC)."""
-    db.collection("users").document(uid).collection("state").document(
-        "watcher"
-    ).set({"lastRunAt": when}, merge=True)
-
-
-def load_user_self_email(db, uid: str) -> str:
-    """Return users/{uid}.gmail.email lowercased, or '' if missing.
-
-    Used to suppress alerts on the user's own outgoing mail. When two
-    portal-linked users share a Telegram chat (one as recipient via their
-    inbox, the other as sender via their Sent folder), both would otherwise
-    fire on the same conversation.
-    """
-    snap = db.collection("users").document(uid).get()
-    if not snap.exists:
-        return ""
-    return ((snap.to_dict() or {}).get("gmail") or {}).get("email", "").strip().lower()
 
 
 # ---------- LLM summarization ----------
@@ -661,7 +595,7 @@ def process_user(
                 pdf_count = len(list(subject_dir.glob("*.pdf")))
                 has_csv = (subject_dir / SUMMARY_FILENAME).exists()
                 upsert_folder_item(
-                    firestore_client(),
+                    get_db(),
                     uid,
                     subject=email["subject"],
                     subject_slug=subject_slug,
@@ -682,7 +616,7 @@ def process_user(
 
                 sender_name, sender_email = parseaddr(email.get("from", ""))
                 upsert_lead(
-                    firestore_client(),
+                    get_db(),
                     uid,
                     sender_email=sender_email,
                     sender_name=sender_name,
@@ -748,7 +682,7 @@ def main():
         return
 
     try:
-        db = firestore_client()
+        db = get_db()
     except (FileNotFoundError, OSError) as exc:
         log.error("Firestore client init failed: %s", exc)
         return
