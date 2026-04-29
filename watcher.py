@@ -18,13 +18,16 @@ Dedup state lives at users/{uid}/state/watcher in Firestore.
 
 import os
 import csv
+import fcntl
 import json
 import base64
 import logging
 import re
+import time
 import traceback
 from pathlib import Path
 from datetime import datetime, timezone
+from email.utils import parseaddr
 
 from dotenv import load_dotenv
 
@@ -43,6 +46,7 @@ load_dotenv(BASE_DIR / ".env")
 from firestore_activity import _client as firestore_client, report_run  # noqa: E402
 from firestore_alerts import send_alert, send_document  # noqa: E402
 from firestore_folders import upsert_folder_item  # noqa: E402
+from firestore_leads import upsert_lead  # noqa: E402
 from firestore_users import (  # noqa: E402
     GOOGLE_OAUTH_WEB_CLIENT_ID,
     GOOGLE_OAUTH_WEB_CLIENT_SECRET,
@@ -51,10 +55,13 @@ from firestore_users import (  # noqa: E402
     load_user_credentials,
 )
 
+import httplib2  # noqa: E402
 from openai import OpenAI  # noqa: E402
 from google.oauth2.credentials import Credentials  # noqa: E402
 from google.auth.exceptions import RefreshError  # noqa: E402
+from google_auth_httplib2 import AuthorizedHttp  # noqa: E402
 from googleapiclient.discovery import build  # noqa: E402
+from googleapiclient.errors import HttpError  # noqa: E402
 
 from reportlab.lib.pagesizes import letter  # noqa: E402
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle  # noqa: E402
@@ -74,50 +81,88 @@ logging.basicConfig(
     handlers=[logging.FileHandler(LOG_PATH), logging.StreamHandler()],
 )
 log = logging.getLogger("watcher")
+from log_redaction import install_redaction_filter  # noqa: E402
+install_redaction_filter(logging.getLogger())
 
 
 # ---------- Gmail helpers ----------
 def _extract_body(payload) -> str:
-    if payload.get("body", {}).get("data"):
-        return base64.urlsafe_b64decode(payload["body"]["data"]).decode(
+    if not isinstance(payload, dict):
+        return ""
+    body_data = (payload.get("body") or {}).get("data")
+    if body_data:
+        return base64.urlsafe_b64decode(body_data).decode(
             "utf-8", errors="replace"
         )
-    for part in payload.get("parts", []):
-        if part.get("mimeType") == "text/plain" and part["body"].get("data"):
-            return base64.urlsafe_b64decode(part["body"]["data"]).decode(
+    for part in payload.get("parts") or []:
+        part_data = (part.get("body") or {}).get("data")
+        if part.get("mimeType") == "text/plain" and part_data:
+            return base64.urlsafe_b64decode(part_data).decode(
                 "utf-8", errors="replace"
             )
-    for part in payload.get("parts", []):
+    for part in payload.get("parts") or []:
         text = _extract_body(part)
         if text:
             return text
     return ""
 
 
+_GMAIL_RETRY_STATUSES = {429, 500, 502, 503, 504}
+_GMAIL_RETRY_BACKOFFS = (1, 4)
+
+
+def _gmail_execute(request, *, label: str):
+    """Execute a Gmail API request with bounded retry on transients.
+
+    Retries 429 + 5xx; lets 4xx auth errors propagate. Without this, a
+    routine 502 from Gmail silently dropped the whole cycle's email list.
+    """
+    last_exc: HttpError | None = None
+    for attempt in range(3):
+        try:
+            return request.execute()
+        except HttpError as exc:
+            status = getattr(exc.resp, "status", 0)
+            if status not in _GMAIL_RETRY_STATUSES:
+                raise
+            last_exc = exc
+            log.warning(
+                "Gmail %s transient %s (attempt %d/3)",
+                label, status, attempt + 1,
+            )
+        if attempt < len(_GMAIL_RETRY_BACKOFFS):
+            time.sleep(_GMAIL_RETRY_BACKOFFS[attempt])
+    assert last_exc is not None
+    raise last_exc
+
+
 def fetch_new_emails(creds: Credentials, senders: list, lookback: str) -> list:
     if not senders:
         return []
-    service = build("gmail", "v1", credentials=creds)
+    # 20s socket timeout on every Gmail HTTP call so a stalled TLS handshake
+    # cannot block the watcher cycle indefinitely.
+    authed_http = AuthorizedHttp(creds, http=httplib2.Http(timeout=20))
+    service = build("gmail", "v1", http=authed_http, cache_discovery=False)
     or_clause = " OR ".join(f"from:{s}" for s in senders)
     query = f"({or_clause}) newer_than:{lookback}"
     log.info(f"Gmail query: {query}")
-    result = (
-        service.users()
-        .messages()
-        .list(userId="me", q=query, maxResults=25)
-        .execute()
+    result = _gmail_execute(
+        service.users().messages().list(userId="me", q=query, maxResults=25),
+        label="messages.list",
     )
     messages = result.get("messages", [])
     emails = []
     for m in messages:
-        msg = (
-            service.users()
-            .messages()
-            .get(userId="me", id=m["id"], format="full")
-            .execute()
+        msg = _gmail_execute(
+            service.users().messages().get(userId="me", id=m["id"], format="full"),
+            label="messages.get",
         )
-        headers = {h["name"]: h["value"] for h in msg["payload"]["headers"]}
-        body = _extract_body(msg["payload"])[:8000]
+        payload = msg.get("payload") or {}
+        headers = {
+            h.get("name", ""): h.get("value", "")
+            for h in payload.get("headers") or []
+        }
+        body = _extract_body(payload)[:8000]
         emails.append(
             {
                 "id": m["id"],
@@ -146,6 +191,30 @@ def load_user_state(db, uid: str) -> list[str]:
     return [str(x) for x in ids]
 
 
+def load_user_last_run_at(db, uid: str) -> datetime | None:
+    """Return the last time the watcher actually processed this user, or None.
+
+    Returns timezone-aware UTC datetime (Firestore timestamps deserialize
+    as UTC-aware) or None if the user has never been processed.
+    """
+    doc = (
+        db.collection("users")
+        .document(uid)
+        .collection("state")
+        .document("watcher")
+        .get()
+    )
+    if not doc.exists:
+        return None
+    data = doc.to_dict() or {}
+    last = data.get("lastRunAt")
+    if last is None:
+        return None
+    if isinstance(last, datetime):
+        return last
+    return None
+
+
 def save_user_state(db, uid: str, processed_ids: list[str]) -> None:
     db.collection("users").document(uid).collection("state").document(
         "watcher"
@@ -153,21 +222,45 @@ def save_user_state(db, uid: str, processed_ids: list[str]) -> None:
         {
             "processedIds": processed_ids[-MAX_PROCESSED:],
             "updatedAt": datetime.now(timezone.utc),
-        }
+        },
+        merge=True,
     )
 
 
+def save_user_last_run_at(db, uid: str, when: datetime) -> None:
+    """Mark the user as having been processed at `when` (UTC)."""
+    db.collection("users").document(uid).collection("state").document(
+        "watcher"
+    ).set({"lastRunAt": when}, merge=True)
+
+
+def load_user_self_email(db, uid: str) -> str:
+    """Return users/{uid}.gmail.email lowercased, or '' if missing.
+
+    Used to suppress alerts on the user's own outgoing mail. When two
+    portal-linked users share a Telegram chat (one as recipient via their
+    inbox, the other as sender via their Sent folder), both would otherwise
+    fire on the same conversation.
+    """
+    snap = db.collection("users").document(uid).get()
+    if not snap.exists:
+        return ""
+    return ((snap.to_dict() or {}).get("gmail") or {}).get("email", "").strip().lower()
+
+
 # ---------- LLM summarization ----------
-EMAIL_PROMPT = """You are Shawn's executive assistant. Summarize the email below into structured JSON ONLY (no prose, no markdown fences).
+DEFAULT_PERSONA_LINE = "You are an executive assistant summarizing emails for the recipient."
+
+EMAIL_PROMPT = """{persona_line} Summarize the email below into structured JSON ONLY (no prose, no markdown fences).
 
 Required JSON shape:
-{{
+{{{{
   "context": ["1-2 short bullets giving who they are / why writing"],
-  "key_points": ["3-6 bullets of specific facts, claims, requests, numbers, quotes from the email"],
-  "asks": ["bullets of what they want from Shawn, or one item 'FYI only - no action'"],
+  "key_points": ["up to {kp_max} bullets of specific facts, claims, requests, numbers, quotes from the email"],
+  "asks": ["up to {asks_max} bullets of what they want from the recipient, or one item 'FYI only - no action'"],
   "suggested_response": "one short line e.g. 'Reply Friday', 'No reply needed'",
   "urgency": "low" | "med" | "high"
-}}
+}}}}
 
 Style:
 - Specific over generic. Pull real numbers, names, dates.
@@ -175,12 +268,24 @@ Style:
 - Output ONLY the JSON object.
 
 EMAIL:
-From: {from_}
-Subject: {subject}
-Date: {date}
+From: {{from_}}
+Subject: {{subject}}
+Date: {{date}}
 
-{body}
+{{body}}
 """
+
+
+def _build_email_template(cfg: dict) -> str:
+    persona = (cfg.get("summaryPersona") or "").strip()
+    persona_line = persona if persona else DEFAULT_PERSONA_LINE
+    kp_max = cfg.get("summaryKeyPointsMax", 6)
+    asks_max = cfg.get("summaryAsksMax", 4)
+    return EMAIL_PROMPT.format(
+        persona_line=persona_line,
+        kp_max=kp_max,
+        asks_max=asks_max,
+    )
 
 
 def _strip_fences(text: str) -> str:
@@ -195,8 +300,32 @@ def _strip_fences(text: str) -> str:
     return text
 
 
-def summarize_email(client: OpenAI, email: dict) -> dict:
-    prompt = EMAIL_PROMPT.format(
+_VALID_URGENCY = {"low", "med", "high"}
+
+
+def _normalize_summary(data) -> dict:
+    """Coerce LLM JSON output into the shape downstream code expects.
+
+    Tolerates the LLM returning wrong types (string instead of list, missing
+    keys, extra keys). Without this, a single malformed summary aborts the
+    per-email try, so the user gets the Telegram alert but no PDF/folder/lead.
+    """
+    if not isinstance(data, dict):
+        data = {}
+    out: dict = {}
+    for key in ("context", "key_points", "asks"):
+        v = data.get(key)
+        out[key] = v if isinstance(v, list) else []
+    urg = data.get("urgency")
+    out["urgency"] = urg if urg in _VALID_URGENCY else "low"
+    sr = data.get("suggested_response")
+    out["suggested_response"] = sr if isinstance(sr, str) else ""
+    return out
+
+
+def summarize_email(client: OpenAI, email: dict, cfg: dict) -> dict:
+    template = _build_email_template(cfg)
+    prompt = template.format(
         from_=email["from"],
         subject=email["subject"],
         date=email["date"],
@@ -209,16 +338,16 @@ def summarize_email(client: OpenAI, email: dict) -> dict:
     )
     text = _strip_fences(resp.choices[0].message.content or "")
     try:
-        return json.loads(text)
+        return _normalize_summary(json.loads(text))
     except json.JSONDecodeError:
         log.warning(f"JSON parse failed for {email['subject']!r}; using fallback")
-        return {
+        return _normalize_summary({
             "context": [],
             "key_points": [text[:400]] if text else [],
             "asks": [],
             "suggested_response": "",
             "urgency": "low",
-        }
+        })
 
 
 # ---------- PDF builder ----------
@@ -378,7 +507,35 @@ def process_user(
         cfg = load_user_config(db, uid)
         senders = cfg["senders"]
         lookback = cfg["lookback"]
-        log.info("[%s] senders=%d lookback=%s", uid, len(senders), lookback)
+        interval_minutes = cfg["intervalMinutes"]
+        log.info(
+            "[%s] senders=%d lookback=%s interval=%dm",
+            uid, len(senders), lookback, interval_minutes,
+        )
+
+        # Per-user cadence gate. The LaunchAgent ticks every 2 min, but each
+        # user only actually processes when at least intervalMinutes has
+        # elapsed since their last run. First-ever run (no lastRunAt) always
+        # proceeds. A 5s grace covers tick jitter so a user who picked
+        # "every 5 min" doesn't drift to 7 min on a slightly-late tick.
+        last_run_at = load_user_last_run_at(db, uid)
+        if last_run_at is not None:
+            elapsed = (user_started - last_run_at).total_seconds()
+            required = interval_minutes * 60 - 5
+            if elapsed < required:
+                log.info(
+                    "[%s] skipping (last run %.0fs ago, interval=%dm)",
+                    uid, elapsed, interval_minutes,
+                )
+                return
+
+        # Record the run *before* doing the actual work. If the cycle
+        # crashes mid-flight (Ollama hang, OOM), the next tick still respects
+        # the user's chosen cadence instead of replaying immediately.
+        try:
+            save_user_last_run_at(db, uid, user_started)
+        except Exception:  # noqa: BLE001 - best-effort gate persistence
+            log.exception("[%s] save_user_last_run_at failed", uid)
 
         try:
             creds = load_user_credentials(db, uid)
@@ -418,6 +575,31 @@ def process_user(
         log.info("[%s] matching emails: %d", uid, len(emails))
 
         new_emails = [e for e in emails if e["id"] not in seen]
+
+        # Suppress emails the user sent themselves. When two portal-linked
+        # users share a Telegram chat (one as inbox recipient, the other as
+        # sender via Sent folder), both would otherwise fire on the same
+        # email. Mark the suppressed ids seen so they don't re-fetch forever.
+        self_email = load_user_self_email(db, uid)
+        if self_email:
+            kept, self_sent = [], []
+            for e in new_emails:
+                addr = (parseaddr(e.get("from", ""))[1] or "").strip().lower()
+                (self_sent if addr == self_email else kept).append(e)
+            if self_sent:
+                log.info(
+                    "[%s] suppressing %d self-sent email(s); marking seen",
+                    uid, len(self_sent),
+                )
+                ids = [e["id"] for e in self_sent]
+                seen_ids.extend(ids)
+                seen.update(ids)
+                try:
+                    save_user_state(db, uid, seen_ids)
+                except Exception:  # noqa: BLE001 - best-effort; suppression is idempotent
+                    log.exception("[%s] save_user_state after self-sent suppression failed", uid)
+            new_emails = kept
+
         new_count = len(new_emails)
         log.info("[%s] new (not yet processed): %d", uid, new_count)
 
@@ -433,13 +615,33 @@ def process_user(
 
         for email in new_emails:
             try:
-                send_alert(
+                alert_ok = send_alert(
                     uid,
                     f"📬 New from {email['from']}\n{email['subject']}",
                 )
+                # Mark as seen the instant Telegram confirms the alert went
+                # out. If a SIGTERM / OOM / sleep happens mid-PDF, the user
+                # gets at most one duplicate alert next tick instead of the
+                # full storm of every already-alerted email.
+                if alert_ok:
+                    seen_ids.append(email["id"])
+                    seen.add(email["id"])
+                    try:
+                        save_user_state(db, uid, seen_ids)
+                    except Exception:  # noqa: BLE001 - best-effort early save
+                        log.exception(
+                            "[%s] early state save failed for %s",
+                            uid, email["id"],
+                        )
+                else:
+                    log.warning(
+                        "[%s] alert not delivered for %s; will retry next tick",
+                        uid, email["id"],
+                    )
+                    continue
 
                 log.info("[%s] summarizing: %s", uid, email["subject"][:60])
-                summary = summarize_email(llm_client, email)
+                summary = summarize_email(llm_client, email, cfg)
 
                 run_at = datetime.now()
                 pdf_name = (
@@ -478,17 +680,28 @@ def process_user(
                     has_csv=has_csv,
                 )
 
+                sender_name, sender_email = parseaddr(email.get("from", ""))
+                upsert_lead(
+                    firestore_client(),
+                    uid,
+                    sender_email=sender_email,
+                    sender_name=sender_name,
+                    subject=email["subject"],
+                    subject_slug=subject_slug,
+                    urgency=(summary.get("urgency") or "low"),
+                    pdf_filename=pdf_path.name,
+                    suggested_response=summary.get("suggested_response") or "",
+                )
+
                 urg = (summary.get("urgency") or "low").upper()
                 caption = f"{email['subject']}\nUrgency: {urg}"
                 send_document(uid, pdf_path, caption)
-
-                seen_ids.append(email["id"])
-                seen.add(email["id"])
             except Exception as e:  # noqa: BLE001 - per-email isolation
                 log.exception(
                     "[%s] failed processing %s: %s", uid, email["id"], e
                 )
-                # Don't add to seen — retry next run.
+                # Already in seen_ids from the early save above; the user
+                # got the alert, just not the PDF — don't re-alert next tick.
 
         save_user_state(db, uid, seen_ids)
         log.info("[%s] state saved (%d ids)", uid, len(seen_ids[-MAX_PROCESSED:]))
@@ -514,6 +727,16 @@ def process_user(
 
 
 def main():
+    # Inter-process lock: if a previous LaunchAgent tick is still running
+    # (e.g. a 25-email Ollama cycle exceeded StartInterval=300), exit cleanly
+    # so we don't double-process the same Firestore state.
+    lock_fd = open(BASE_DIR / ".watcher.lock", "w")
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        log.info("previous watcher tick still running; exiting")
+        return
+
     log.info("=" * 60)
     log.info("Watcher run starting (multi-tenant)")
 
@@ -540,7 +763,11 @@ def main():
     if not uids:
         return
 
-    llm_client = OpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama-local")
+    # 90s cap per Ollama call — generous for a laptop, short enough that a
+    # stalled summary doesn't pile up across overlapping ticks.
+    llm_client = OpenAI(
+        base_url=OLLAMA_BASE_URL, api_key="ollama-local", timeout=90,
+    )
 
     for uid in uids:
         process_user(db, uid, llm_client)

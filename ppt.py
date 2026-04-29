@@ -60,6 +60,8 @@ logging.basicConfig(
     handlers=[logging.FileHandler(LOG_PATH), logging.StreamHandler()],
 )
 log = logging.getLogger("ppt")
+from log_redaction import install_redaction_filter  # noqa: E402
+install_redaction_filter(logging.getLogger())
 
 
 # ---------- Gmail helpers ----------
@@ -67,7 +69,9 @@ def get_gmail_service():
     creds = Credentials.from_authorized_user_file(str(GMAIL_TOKEN_PATH), GMAIL_SCOPES)
     if creds.expired and creds.refresh_token:
         creds.refresh(Request())
+        # Refresh tokens grant gmail.modify indefinitely; ensure 0600 every write.
         GMAIL_TOKEN_PATH.write_text(creds.to_json())
+        os.chmod(GMAIL_TOKEN_PATH, 0o600)
     return build("gmail", "v1", credentials=creds)
 
 
@@ -368,7 +372,8 @@ def main():
         )
     except SystemExit:
         raise
-    except Exception:
+    except Exception:  # noqa: BLE001 - report-then-rethrow guard:
+        # we want the activity record written before the process exits.
         report_run(
             "ppt",
             "error",
@@ -383,10 +388,11 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except Exception as e:
+    except Exception:  # noqa: BLE001 - top-level subprocess guard.
         log.exception("PPT generation failed")
         try:
-            send_telegram(f"⚠️ PPT failed: {e}\nSee {LOG_PATH}")
-        except Exception:
-            pass
+            # Don't echo the exception text — see digest.py for rationale.
+            send_telegram(f"⚠️ PPT failed. See {LOG_PATH}")
+        except (OSError, ValueError):
+            log.exception("Failed to deliver PPT failure alert")
         raise

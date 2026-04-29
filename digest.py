@@ -54,6 +54,8 @@ logging.basicConfig(
     handlers=[logging.FileHandler(LOG_PATH), logging.StreamHandler()],
 )
 log = logging.getLogger("digest")
+from log_redaction import install_redaction_filter  # noqa: E402
+install_redaction_filter(logging.getLogger())
 
 
 # ---------- Gmail helpers ----------
@@ -333,7 +335,8 @@ def run_digest_for_user(db, uid: str, run_at: datetime, started: datetime) -> No
             error=f"RefreshError: {exc}",
             uid=uid,
         )
-    except Exception:
+    except Exception:  # noqa: BLE001 - per-user isolation: one user's
+        # failure must not abort the digest loop for other tenants.
         log.exception("uid=%s digest failed", uid)
         report_run(
             "digest",
@@ -366,14 +369,18 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except Exception as e:
+    except Exception:  # noqa: BLE001 - top-level launchd guard:
+        # ensure the failure is logged + the admin paged before re-raising.
         log.exception("Digest run failed")
         if ADMIN_USER_UID:
             try:
+                # Don't echo the exception text — it can carry tokens or
+                # fragments of upstream HTTP responses. The admin reads
+                # the log file for the detail.
                 send_telegram(
                     ADMIN_USER_UID,
-                    f"⚠️ Daily digest run failed: {e}\nSee {LOG_PATH}",
+                    f"⚠️ Daily digest run failed. See {LOG_PATH}",
                 )
-            except Exception:
+            except (OSError, ValueError):
                 log.exception("Failed to deliver fatal-alert to admin")
         raise

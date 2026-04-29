@@ -1,4 +1,6 @@
 .env
+.env.*
+!.env.example
 gmail_credentials.json
 gmail_token.json
 venv/
@@ -8,3 +10,20 @@ priority_senders.txt
 watcher_state.json
 watcher_config.json
 firebase-service-account.json
+
+# macOS / editor cruft
+.DS_Store
+**/.DS_Store
+
+# Symlinks into other repos (workspace-only)
+ui-platform
+
+# Local Claude Code state (machine-specific)
+.claude/
+
+# Local data with PII — never commit email content
+email-pdfs/
+email-digests/
+email-ppts/
+*.pdf
+*.pptx

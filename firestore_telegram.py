@@ -34,6 +34,8 @@ from typing import Optional
 import firebase_admin
 from firebase_admin import credentials, firestore
 
+from firestore_audit import record_audit
+
 BASE_DIR = Path(__file__).parent.resolve()
 SERVICE_ACCOUNT = BASE_DIR / "firebase-service-account.json"
 
@@ -137,6 +139,13 @@ def consume_link_token(
                     uid,
                     status.value,
                 )
+                if status is LinkLookupStatus.OK:
+                    record_audit(
+                        uid,
+                        "telegram_link",
+                        "consume_link_token",
+                        {"chatId": int(chat_id), "tokenPath": "new"},
+                    )
             return (status, uid)
 
     legacy_uid = _find_legacy_token(db, input_value, now)
@@ -152,6 +161,12 @@ def consume_link_token(
         "linked telegram chat_id=%s -> users/%s (legacy path)",
         chat_id,
         legacy_uid,
+    )
+    record_audit(
+        legacy_uid,
+        "telegram_link",
+        "consume_link_token",
+        {"chatId": int(chat_id), "tokenPath": "legacy"},
     )
     return (LinkLookupStatus.OK, legacy_uid)
 
@@ -267,3 +282,4 @@ def delete_telegram_link(uid: str) -> None:
         merge=True,
     )
     log.info("unlinked telegram for users/%s", uid)
+    record_audit(uid, "telegram_unlink", "delete_telegram_link")

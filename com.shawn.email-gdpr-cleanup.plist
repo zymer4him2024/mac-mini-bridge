@@ -3,21 +3,21 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.shawn.email-watcher</string>
+    <string>com.shawn.email-gdpr-cleanup</string>
     <key>ProgramArguments</key>
     <array>
         <string>/Users/shawnlee/telegram-bridge/venv/bin/python</string>
-        <string>/Users/shawnlee/telegram-bridge/watcher.py</string>
+        <string>/Users/shawnlee/telegram-bridge/gdpr_local_cleanup.py</string>
     </array>
     <key>WorkingDirectory</key>
     <string>/Users/shawnlee/telegram-bridge</string>
     <key>RunAtLoad</key>
-    <true/>
+    <false/>
     <key>StartInterval</key>
-    <integer>120</integer>
+    <integer>900</integer>
     <key>StandardOutPath</key>
-    <string>/Users/shawnlee/telegram-bridge/watcher.stdout.log</string>
+    <string>/Users/shawnlee/telegram-bridge/gdpr_local_cleanup.stdout.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/shawnlee/telegram-bridge/watcher.stderr.log</string>
+    <string>/Users/shawnlee/telegram-bridge/gdpr_local_cleanup.stderr.log</string>
 </dict>
 </plist>

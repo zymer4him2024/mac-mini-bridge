@@ -1,0 +1,60 @@
+name: Quarterly access review
+
+on:
+  schedule:
+    # 09:17 UTC on the 27th of Jan / Apr / Jul / Oct.
+    # Off-minute is intentional — avoids the :00 cron stampede.
+    - cron: "17 9 27 1,4,7,10 *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  open-review-issue:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Open access-review issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const today = new Date().toISOString().slice(0, 10);
+            const title = `Access review due — ${today}`;
+            const body = [
+              `Quarterly access review per [\`docs/runbook-operator-controls.md\`](../blob/main/docs/runbook-operator-controls.md#quarterly-access-review-phase-d4-hook).`,
+              ``,
+              `**Owner:** operator on call`,
+              `**Due:** within 7 days of this issue opening`,
+              ``,
+              `## Steps`,
+              ``,
+              `1. Snapshot project IAM:`,
+              `   \`\`\`sh`,
+              `   gcloud projects get-iam-policy <project> --format=json > iam-snapshot-${today}.json`,
+              `   gcloud kms keys get-iam-policy app-secrets \\`,
+              `     --location us-central1 --keyring email2ppt --format=json \\`,
+              `     > kms-iam-snapshot-${today}.json`,
+              `   \`\`\``,
+              `2. Diff against the previous quarter's snapshot. Any added member without a corresponding ticket should be revoked the same day.`,
+              `3. Verify worker SA key age:`,
+              `   \`\`\`sh`,
+              `   gcloud iam service-accounts keys list \\`,
+              `     --iam-account email2ppt-worker@<project>.iam.gserviceaccount.com`,
+              `   \`\`\``,
+              `   Rotate any key older than 90 days per the runbook's "Rotation procedure" section.`,
+              `4. Confirm Secret Manager secret \`email2ppt-worker-sa\` still exists and is the source of truth for the Mac Mini launch wrapper.`,
+              `5. Close this issue with a comment summarising: added / removed / unchanged members, key age, and any same-day revokes performed.`,
+              ``,
+              `_This issue was opened automatically by \`.github/workflows/access-review.yml\`._`,
+            ].join("\n");
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ["security", "compliance", "access-review"],
+            });

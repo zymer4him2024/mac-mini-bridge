@@ -3,21 +3,26 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.shawn.email-watcher</string>
+    <string>com.shawn.email-retention</string>
     <key>ProgramArguments</key>
     <array>
         <string>/Users/shawnlee/telegram-bridge/venv/bin/python</string>
-        <string>/Users/shawnlee/telegram-bridge/watcher.py</string>
+        <string>/Users/shawnlee/telegram-bridge/retention_sweep.py</string>
     </array>
     <key>WorkingDirectory</key>
     <string>/Users/shawnlee/telegram-bridge</string>
     <key>RunAtLoad</key>
-    <true/>
-    <key>StartInterval</key>
-    <integer>120</integer>
+    <false/>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>3</integer>
+        <key>Minute</key>
+        <integer>15</integer>
+    </dict>
     <key>StandardOutPath</key>
-    <string>/Users/shawnlee/telegram-bridge/watcher.stdout.log</string>
+    <string>/Users/shawnlee/telegram-bridge/retention_sweep.stdout.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/shawnlee/telegram-bridge/watcher.stderr.log</string>
+    <string>/Users/shawnlee/telegram-bridge/retention_sweep.stderr.log</string>
 </dict>
 </plist>

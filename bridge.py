@@ -32,11 +32,21 @@ from telegram.ext import (
     ContextTypes,
     filters,
 )
-from openai import OpenAI
+from openai import OpenAI, OpenAIError
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError as GoogleHttpError
+
+from schemas import (
+    InvalidLinkInput,
+    InvalidPPTQuery,
+    parse_link_input,
+    parse_ppt_query,
+)
+
+GENERIC_ERROR_REPLY = "Something went wrong on our end. We've logged it."
 
 from firestore_telegram import (
     LinkLookupStatus,
@@ -70,6 +80,9 @@ log = logging.getLogger("bridge")
 # token in every getUpdates poll. Suppress to WARNING.
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
+from log_redaction import install_redaction_filter  # noqa: E402
+install_redaction_filter(logging.getLogger())
+
 # OpenAI client pointed at local Ollama
 llm = OpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama-local")
 
@@ -80,6 +93,12 @@ MAX_TOOL_LOOPS = 6  # safety cap so a confused model can't loop forever
 
 
 # ---------- Gmail helpers ----------
+def _persist_token(creds: Credentials) -> None:
+    # Refresh tokens grant gmail.modify indefinitely; ensure 0600 every write.
+    GMAIL_TOKEN_PATH.write_text(creds.to_json())
+    os.chmod(GMAIL_TOKEN_PATH, 0o600)
+
+
 def get_gmail_service():
     creds = None
     if GMAIL_TOKEN_PATH.exists():
@@ -92,7 +111,7 @@ def get_gmail_service():
                 str(GMAIL_CREDS_PATH), GMAIL_SCOPES
             )
             creds = flow.run_local_server(port=0)
-        GMAIL_TOKEN_PATH.write_text(creds.to_json())
+        _persist_token(creds)
     return build("gmail", "v1", credentials=creds)
 
 
@@ -278,9 +297,9 @@ def ask_llm(user_message: str) -> str:
                 tools=TOOLS,
                 temperature=0.3,
             )
-        except Exception as e:
-            log.exception("LLM call failed")
-            return f"Local model error: {e}"
+        except (OpenAIError, OSError) as exc:
+            log.exception("LLM call failed: %s", exc)
+            return GENERIC_ERROR_REPLY
 
         msg = resp.choices[0].message
 
@@ -308,9 +327,18 @@ def ask_llm(user_message: str) -> str:
                 try:
                     args = json.loads(tc.function.arguments or "{}")
                     result = execute_tool(tc.function.name, args)
-                except Exception as e:
+                except (
+                    GoogleHttpError,
+                    json.JSONDecodeError,
+                    KeyError,
+                    ValueError,
+                    OSError,
+                ) as exc:
                     log.exception("Tool error")
-                    result = {"error": str(e)}
+                    # The tool result is fed back to the LLM, not the user;
+                    # keep the error class but drop any string detail that
+                    # might contain a token or upstream payload.
+                    result = {"error": exc.__class__.__name__}
                 conversation_history.append(
                     {
                         "role": "tool",
@@ -342,8 +370,17 @@ def authorized(update: Update) -> bool:
 async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     # /start <token-or-shortCode> — link an email2ppt account.
     raw = ctx.args[0].strip() if ctx.args else ""
-    # Accept "123-456" or "123 456" as well as "123456" for the manual code.
-    token_or_code = raw.replace("-", "").replace(" ", "")
+    token_or_code = ""
+    if raw:
+        try:
+            token_or_code = parse_link_input(raw)
+        except InvalidLinkInput:
+            log.info("rejected /start input from chat_id=%s", update.effective_chat.id)
+            await update.message.reply_text(
+                "That link doesn't look valid. Open the email2ppt portal to "
+                "get a fresh one."
+            )
+            return
     if token_or_code:
         chat = update.effective_chat
         user = update.effective_user
@@ -354,11 +391,9 @@ async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 user.username if user else None,
                 user.first_name if user else None,
             )
-        except Exception:
-            log.exception("consume_link_token failed")
-            await update.message.reply_text(
-                "Something went wrong on our end. Try again in a moment."
-            )
+        except (FileNotFoundError, OSError) as exc:
+            log.exception("consume_link_token failed: %s", exc)
+            await update.message.reply_text(GENERIC_ERROR_REPLY)
             return
 
         fresh_button = InlineKeyboardMarkup(
@@ -417,11 +452,9 @@ async def whoami(update: Update, _: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     try:
         link = find_telegram_link(chat_id)
-    except Exception:
-        log.exception("find_telegram_link failed")
-        await update.message.reply_text(
-            "Something went wrong on our end. Try again in a moment."
-        )
+    except (FileNotFoundError, OSError) as exc:
+        log.exception("find_telegram_link failed: %s", exc)
+        await update.message.reply_text(GENERIC_ERROR_REPLY)
         return
     if not link:
         keyboard = InlineKeyboardMarkup(
@@ -455,11 +488,9 @@ async def unlink(update: Update, _: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     try:
         link = find_telegram_link(chat_id)
-    except Exception:
-        log.exception("find_telegram_link failed")
-        await update.message.reply_text(
-            "Something went wrong on our end. Try again in a moment."
-        )
+    except (FileNotFoundError, OSError) as exc:
+        log.exception("find_telegram_link failed: %s", exc)
+        await update.message.reply_text(GENERIC_ERROR_REPLY)
         return
     if not link:
         await update.message.reply_text("You're not connected to email2ppt.")
@@ -488,22 +519,18 @@ async def unlink_callback(update: Update, _: ContextTypes.DEFAULT_TYPE):
     chat_id = query.message.chat.id
     try:
         link = find_telegram_link(chat_id)
-    except Exception:
-        log.exception("find_telegram_link failed during unlink confirm")
-        await query.edit_message_text(
-            "Something went wrong on our end. Try again in a moment."
-        )
+    except (FileNotFoundError, OSError) as exc:
+        log.exception("find_telegram_link failed during unlink confirm: %s", exc)
+        await query.edit_message_text(GENERIC_ERROR_REPLY)
         return
     if not link:
         await query.edit_message_text("Already disconnected.")
         return
     try:
         delete_telegram_link(link["uid"])
-    except Exception:
-        log.exception("delete_telegram_link failed")
-        await query.edit_message_text(
-            "Couldn't disconnect. Try again in a moment."
-        )
+    except (FileNotFoundError, OSError) as exc:
+        log.exception("delete_telegram_link failed: %s", exc)
+        await query.edit_message_text(GENERIC_ERROR_REPLY)
         return
     keyboard = InlineKeyboardMarkup(
         [[InlineKeyboardButton("Get a fresh link", url="https://email2ppt.web.app")]]
@@ -566,19 +593,28 @@ async def trigger_digest(update: Update, _: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             "📬 On it — running the email digest now. Summary will arrive in a moment."
         )
-    except Exception as e:
-        log.exception("Failed to launch digest")
-        await update.message.reply_text(f"Couldn't start digest: {e}")
+    except (OSError, ValueError) as exc:
+        log.exception("Failed to launch digest: %s", exc)
+        await update.message.reply_text(GENERIC_ERROR_REPLY)
 
 
 async def trigger_ppt(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Generate a PowerPoint deck from emails matching a Gmail query."""
     if not authorized(update):
         return
-    query = " ".join(ctx.args).strip() if ctx.args else ""
-    if not query:
+    raw = " ".join(ctx.args).strip() if ctx.args else ""
+    if not raw:
         await update.message.reply_text(
             "Usage: /ppt <gmail-query>\nExample: /ppt from:investor newer_than:7d"
+        )
+        return
+    try:
+        query = parse_ppt_query(raw)
+    except InvalidPPTQuery as exc:
+        log.info("rejected /ppt query from chat_id=%s: %s", update.effective_chat.id, exc)
+        await update.message.reply_text(
+            "That query isn't allowed. Use Gmail operators like "
+            "`from:`, `subject:`, `is:`, `newer_than:`."
         )
         return
     ppt_path = BASE_DIR / "ppt.py"
@@ -595,9 +631,9 @@ async def trigger_ppt(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         )
         log.info(f"Triggered ppt.py with query: {query}")
         await update.message.reply_text(f"📊 Generating PPT for: {query}")
-    except Exception as e:
-        log.exception("Failed to launch ppt")
-        await update.message.reply_text(f"Couldn't start PPT: {e}")
+    except (OSError, ValueError) as exc:
+        log.exception("Failed to launch ppt: %s", exc)
+        await update.message.reply_text(GENERIC_ERROR_REPLY)
 
 
 async def handle_message(update: Update, _: ContextTypes.DEFAULT_TYPE):
@@ -621,9 +657,9 @@ async def handle_message(update: Update, _: ContextTypes.DEFAULT_TYPE):
 
     try:
         reply = ask_llm(text)
-    except Exception as e:
-        log.exception("LLM error")
-        reply = f"Something went wrong: {e}"
+    except (OpenAIError, OSError, ValueError) as exc:
+        log.exception("LLM error: %s", exc)
+        reply = GENERIC_ERROR_REPLY
 
     # Telegram 4096-char cap per message
     for i in range(0, len(reply), 4000):

@@ -25,6 +25,7 @@ from google.api_core import exceptions as gax
 
 from firestore_activity import report_run
 from firestore_alerts import send_alert
+from firestore_audit import record_audit
 
 BASE_DIR = Path(__file__).parent.resolve()
 load_dotenv(BASE_DIR / ".env")
@@ -54,6 +55,8 @@ logging.basicConfig(
     handlers=[logging.FileHandler(LOG_PATH), logging.StreamHandler()],
 )
 log = logging.getLogger("config_sync")
+from log_redaction import install_redaction_filter  # noqa: E402
+install_redaction_filter(logging.getLogger())
 
 
 def send_telegram(text: str) -> None:
@@ -172,10 +175,17 @@ def main() -> None:
                 started_at=started,
                 outputs=diffs,
             )
+            record_audit(
+                USER_UID,
+                "config_change",
+                "config_sync",
+                {"diffs": diffs},
+            )
         else:
             log.info("no changes")
             # Silent polls don't get reported; activity feed stays useful.
-    except Exception:
+    except Exception:  # noqa: BLE001 - report-then-rethrow guard:
+        # ensure the activity record is written before launchd surfaces the failure.
         report_run(
             "config_sync",
             "error",

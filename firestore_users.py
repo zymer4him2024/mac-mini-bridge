@@ -13,6 +13,8 @@ import os
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 
+from kms_envelope import unwrap_token
+
 GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 TOKEN_URI = "https://oauth2.googleapis.com/token"
 
@@ -24,6 +26,21 @@ GOOGLE_OAUTH_WEB_CLIENT_SECRET = os.environ.get(
 ).strip()
 
 DEFAULT_LOOKBACK = "1d"
+DEFAULT_RETENTION_DAYS = 30
+MAX_RETENTION_DAYS = 365
+
+# Per-user watcher cadence. The LaunchAgent ticks every 2 min (the floor);
+# users opting into a slower cadence are skipped on intermediate ticks.
+ALLOWED_INTERVAL_MINUTES = (2, 5, 10, 15, 30, 60)
+DEFAULT_INTERVAL_MINUTES = 5
+
+DEFAULT_SUMMARY_KEY_POINTS_MAX = 6
+SUMMARY_KEY_POINTS_MIN = 3
+SUMMARY_KEY_POINTS_MAX = 10
+DEFAULT_SUMMARY_ASKS_MAX = 4
+SUMMARY_ASKS_MIN = 1
+SUMMARY_ASKS_MAX = 6
+SUMMARY_PERSONA_MAX_CHARS = 500
 
 log = logging.getLogger("firestore_users")
 
@@ -60,6 +77,7 @@ def load_user_credentials(db, uid: str) -> Credentials:
         raise RuntimeError(
             f"users/{uid}/secrets/gmail.refreshToken is empty"
         )
+    refresh_token = unwrap_token(refresh_token)
     creds = Credentials(
         token=None,
         refresh_token=refresh_token,
@@ -73,9 +91,10 @@ def load_user_credentials(db, uid: str) -> Credentials:
 
 
 def load_user_config(db, uid: str) -> dict:
-    """Read users/{uid}/config/main; return {senders, lookback, digestEnabled, displayName}.
+    """Read users/{uid}/config/main; return per-user runtime config.
 
-    Defaults: senders=[], lookback="1d", digestEnabled=True, displayName="".
+    Returns: {senders, lookback, digestEnabled, displayName, retentionDays,
+              summaryPersona, summaryKeyPointsMax, summaryAsksMax}.
     Missing or malformed fields fall back to defaults with a warning.
     """
     doc = (
@@ -116,9 +135,106 @@ def load_user_config(db, uid: str) -> dict:
         display_name = ""
     display_name = display_name.strip()
 
+    retention_raw = data.get("retentionDays", DEFAULT_RETENTION_DAYS)
+    if isinstance(retention_raw, bool) or not isinstance(retention_raw, int):
+        log.warning(
+            "uid=%s retentionDays not an int; defaulting to %d",
+            uid,
+            DEFAULT_RETENTION_DAYS,
+        )
+        retention_days = DEFAULT_RETENTION_DAYS
+    elif retention_raw < 1 or retention_raw > MAX_RETENTION_DAYS:
+        log.warning(
+            "uid=%s retentionDays=%d out of range [1, %d]; clamping",
+            uid,
+            retention_raw,
+            MAX_RETENTION_DAYS,
+        )
+        retention_days = max(1, min(retention_raw, MAX_RETENTION_DAYS))
+    else:
+        retention_days = retention_raw
+
+    persona_raw = data.get("summaryPersona", "")
+    if isinstance(persona_raw, str):
+        persona = persona_raw.strip()[:SUMMARY_PERSONA_MAX_CHARS]
+    else:
+        log.warning("uid=%s summaryPersona is not str; defaulting to empty", uid)
+        persona = ""
+
+    kp_raw = data.get("summaryKeyPointsMax", DEFAULT_SUMMARY_KEY_POINTS_MAX)
+    try:
+        kp_int = int(kp_raw)
+        if isinstance(kp_raw, bool):
+            raise TypeError
+        if kp_int < SUMMARY_KEY_POINTS_MIN or kp_int > SUMMARY_KEY_POINTS_MAX:
+            log.warning(
+                "uid=%s summaryKeyPointsMax=%d out of range [%d, %d]; clamping",
+                uid,
+                kp_int,
+                SUMMARY_KEY_POINTS_MIN,
+                SUMMARY_KEY_POINTS_MAX,
+            )
+        kp_max = max(SUMMARY_KEY_POINTS_MIN, min(SUMMARY_KEY_POINTS_MAX, kp_int))
+    except (TypeError, ValueError):
+        log.warning(
+            "uid=%s summaryKeyPointsMax invalid (%r); using default %d",
+            uid,
+            kp_raw,
+            DEFAULT_SUMMARY_KEY_POINTS_MAX,
+        )
+        kp_max = DEFAULT_SUMMARY_KEY_POINTS_MAX
+
+    interval_raw = data.get("intervalMinutes", DEFAULT_INTERVAL_MINUTES)
+    if isinstance(interval_raw, bool) or not isinstance(interval_raw, int):
+        log.warning(
+            "uid=%s intervalMinutes not an int; defaulting to %d",
+            uid,
+            DEFAULT_INTERVAL_MINUTES,
+        )
+        interval_minutes = DEFAULT_INTERVAL_MINUTES
+    elif interval_raw not in ALLOWED_INTERVAL_MINUTES:
+        log.warning(
+            "uid=%s intervalMinutes=%d not in %s; defaulting to %d",
+            uid,
+            interval_raw,
+            ALLOWED_INTERVAL_MINUTES,
+            DEFAULT_INTERVAL_MINUTES,
+        )
+        interval_minutes = DEFAULT_INTERVAL_MINUTES
+    else:
+        interval_minutes = interval_raw
+
+    asks_raw = data.get("summaryAsksMax", DEFAULT_SUMMARY_ASKS_MAX)
+    try:
+        asks_int = int(asks_raw)
+        if isinstance(asks_raw, bool):
+            raise TypeError
+        if asks_int < SUMMARY_ASKS_MIN or asks_int > SUMMARY_ASKS_MAX:
+            log.warning(
+                "uid=%s summaryAsksMax=%d out of range [%d, %d]; clamping",
+                uid,
+                asks_int,
+                SUMMARY_ASKS_MIN,
+                SUMMARY_ASKS_MAX,
+            )
+        asks_max = max(SUMMARY_ASKS_MIN, min(SUMMARY_ASKS_MAX, asks_int))
+    except (TypeError, ValueError):
+        log.warning(
+            "uid=%s summaryAsksMax invalid (%r); using default %d",
+            uid,
+            asks_raw,
+            DEFAULT_SUMMARY_ASKS_MAX,
+        )
+        asks_max = DEFAULT_SUMMARY_ASKS_MAX
+
     return {
         "senders": senders,
         "lookback": lookback,
         "digestEnabled": digest_enabled,
         "displayName": display_name,
+        "retentionDays": retention_days,
+        "summaryPersona": persona,
+        "summaryKeyPointsMax": kp_max,
+        "summaryAsksMax": asks_max,
+        "intervalMinutes": interval_minutes,
     }
