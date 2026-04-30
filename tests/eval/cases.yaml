@@ -1,0 +1,64 @@
+# RAG eval cases. Hand-edit; expand as new queries arrive.
+#
+# Per-case schema:
+#   name             (required)  kebab-case identifier, unique within the file
+#   uid              (required)  Firestore user id (or pass --uid to override)
+#   subject_slug     (required)  folder slug, must match users/{uid}/folders/<slug>
+#   subject          (required)  human subject string for the LLM prompt
+#   question         (required)  the user's natural-language question
+#
+#   expected_lead_ids       optional list of leadId values. If present, recall@k
+#                           passes only when at least one appears in the top-k hits.
+#   max_top_distance        optional float. Top-1 hit's cosine distance must be <= this.
+#   min_relevant_count      optional int. >=N hits must clear RAG_DISTANCE_THRESHOLD.
+#
+#   expected_keywords       optional list. ALL must appear in the answer (case-insensitive).
+#   forbidden_keywords      optional list. NONE may appear (catches cross-folder bleed).
+#   expected_refusal        optional bool. If true, answer must contain "I don't have".
+#
+# Tip: start with retrieval-only expectations (min_relevant_count, max_top_distance)
+# and run the eval. Read the actual answers, then add expected_keywords iteratively.
+
+- name: korean-food-recommendation
+  uid: lRyuYHeqE4bdATrO50cMEr8p79a2
+  subject_slug: test-요즘-한국에서-가장-유명한-음식
+  subject: "Fwd: Test: 요즘 한국에서 가장 유명한 음식"
+  question: 음식 추천해줘
+  min_relevant_count: 1
+  max_top_distance: 0.55
+  expected_keywords: [비빔밥]
+
+- name: korean-food-instant-noodle
+  uid: lRyuYHeqE4bdATrO50cMEr8p79a2
+  subject_slug: test-요즘-한국에서-가장-유명한-음식
+  subject: "Fwd: Test: 요즘 한국에서 가장 유명한 음식"
+  question: 컵라면은?
+  min_relevant_count: 1
+  max_top_distance: 0.65
+  expected_keywords: [컵라면]
+  forbidden_keywords: [Lebanon, 레바논]   # historical cross-folder bleed regression guard
+
+- name: korean-food-foreign-question
+  uid: lRyuYHeqE4bdATrO50cMEr8p79a2
+  subject_slug: test-요즘-한국에서-가장-유명한-음식
+  subject: "Fwd: Test: 요즘 한국에서 가장 유명한 음식"
+  question: 외국인이 좋아하는 것은?
+  min_relevant_count: 1
+  max_top_distance: 0.7
+  expected_keywords: [비빔밥]
+
+- name: leukemia-prevention-symptoms
+  uid: lRyuYHeqE4bdATrO50cMEr8p79a2
+  subject_slug: test-백혈병-예방법
+  subject: "Fwd: Test: 백혈병 예방법"
+  question: 어떤 증상이 있나요?
+  min_relevant_count: 1
+  max_top_distance: 0.7
+  expected_keywords: [증상]
+
+- name: leukemia-out-of-scope-age
+  uid: lRyuYHeqE4bdATrO50cMEr8p79a2
+  subject_slug: test-백혈병-예방법
+  subject: "Fwd: Test: 백혈병 예방법"
+  question: 몇살부터 조심해야나요?
+  expected_refusal: true

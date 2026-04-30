@@ -10,3 +10,4 @@ reportlab>=4.0.0,<5
 firebase-admin>=6.5.0,<7
 pydantic>=2.6.0,<3
 google-cloud-kms>=2.21.0,<4
+PyYAML>=6.0,<7

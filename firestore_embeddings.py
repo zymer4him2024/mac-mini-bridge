@@ -31,6 +31,13 @@ from embeddings import EMBEDDING_DIM, EMBEDDING_VERSION
 log = logging.getLogger("firestore_embeddings")
 
 
+class EmbeddingVersionMismatch(ValueError):
+    """Indexed vectors were produced by a different embedding model than the
+    current one. Cosine distance across embedding spaces is meaningless, so
+    silently degrading recall is worse than failing loud. Subclasses
+    ValueError so existing `except ValueError` paths still catch it."""
+
+
 def upsert_embedding(
     db,
     uid: str,
@@ -79,6 +86,8 @@ def search_embeddings(
     subject_slug: str,
     query_vector: list[float],
     k: int = 5,
+    *,
+    expected_version: str = EMBEDDING_VERSION,
 ) -> list[dict[str, Any]]:
     """Return top-k embedding docs in (uid, subject_slug), sorted by cosine
     distance ascending (closest match first).
@@ -88,6 +97,12 @@ def search_embeddings(
     apply a threshold for NotebookLM-style "no relevant context" refusals.
 
     Pre-filters by subject_slug so the vector index only scans that folder.
+
+    Raises `EmbeddingVersionMismatch` if any returned doc was indexed with a
+    different `embeddingVersion` than `expected_version`. This catches the
+    silent-recall-degradation bug where someone swaps `EMBEDDING_MODEL` env
+    without bumping `EMBEDDING_VERSION` and reindexing — cross-model cosine
+    distance is meaningless.
     """
     if len(query_vector) != EMBEDDING_DIM:
         raise ValueError(
@@ -104,8 +119,12 @@ def search_embeddings(
         distance_result_field="_distance",
     )
     out: list[dict[str, Any]] = []
+    indexed_versions: set[str] = set()
     for snap in q.get():
         d = snap.to_dict() or {}
+        ver = d.get("embeddingVersion") or ""
+        if ver:
+            indexed_versions.add(ver)
         out.append(
             {
                 "messageId": snap.id,
@@ -115,6 +134,14 @@ def search_embeddings(
                 "senderName": d.get("senderName", ""),
                 "distance": float(d.get("_distance", 0.0)),
             }
+        )
+
+    bad = {v for v in indexed_versions if v != expected_version}
+    if bad:
+        raise EmbeddingVersionMismatch(
+            f"search_embeddings: uid={uid} slug={subject_slug!r} indexed with "
+            f"{sorted(bad)} but query embedded with {expected_version!r}. "
+            f"Reindex via `python backfill_embeddings.py --uid {uid} --force`."
         )
     return out
 
