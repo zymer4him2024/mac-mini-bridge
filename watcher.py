@@ -42,7 +42,7 @@ SUMMARY_FILENAME = "_summary.csv"
 load_dotenv(BASE_DIR / ".env")
 
 from firestore_activity import get_db, report_run  # noqa: E402
-from firestore_alerts import send_alert, send_document  # noqa: E402
+from firestore_alerts import send_document  # noqa: E402
 from firestore_folders import upsert_folder_item  # noqa: E402
 from firebase_storage import upload_pdf, upload_summary_csv  # noqa: E402
 from firestore_leads import upsert_lead  # noqa: E402
@@ -395,6 +395,47 @@ def _sender_slug(from_field: str) -> str:
 
 _REPLY_PREFIX = re.compile(r"^(re|fwd?|fw)\s*:\s*", re.I)
 
+_URGENCY_EMOJI = {"high": "⚡", "med": "🔸", "low": "▫️"}
+
+
+def _compose_telegram_msg(email: dict, summary: dict) -> str:
+    """Build the single per-email Telegram caption (sent with the PDF attached).
+
+    Layout (kept short — Telegram caps sendDocument captions at 1024 chars):
+        📬 {sender display name}
+        {subject}
+
+        • {first key point}
+        • {suggested next action}
+
+        ⚡ HIGH
+    """
+    name, addr = parseaddr(email.get("from", ""))
+    sender = (name.strip() or addr or email.get("from", "")).strip() or "Unknown"
+    subject = (email.get("subject") or "(no subject)").strip()
+
+    bullets: list[str] = []
+    key_points = summary.get("key_points") or []
+    if key_points:
+        first = str(key_points[0]).strip()
+        if first:
+            bullets.append(f"• {first}")
+    sr = (summary.get("suggested_response") or "").strip()
+    if sr:
+        bullets.append(f"• {sr}")
+
+    urg = (summary.get("urgency") or "low").lower()
+    urg_emoji = _URGENCY_EMOJI.get(urg, "▫️")
+    urg_label = urg.upper()
+
+    parts = [f"📬 {sender}", subject]
+    if bullets:
+        parts.append("")
+        parts.extend(bullets)
+    parts.append("")
+    parts.append(f"{urg_emoji} {urg_label}")
+    return "\n".join(parts)
+
 
 def _subject_slug(subject: str) -> str:
     s = subject or ""
@@ -604,31 +645,6 @@ def process_user(
 
         for email in new_emails:
             try:
-                alert_ok = send_alert(
-                    uid,
-                    f"📬 New from {email['from']}\n{email['subject']}",
-                )
-                # Mark as seen the instant Telegram confirms the alert went
-                # out. If a SIGTERM / OOM / sleep happens mid-PDF, the user
-                # gets at most one duplicate alert next tick instead of the
-                # full storm of every already-alerted email.
-                if alert_ok:
-                    seen_ids.append(email["id"])
-                    seen.add(email["id"])
-                    try:
-                        save_user_state(db, uid, seen_ids)
-                    except Exception:  # noqa: BLE001 - best-effort early save
-                        log.exception(
-                            "[%s] early state save failed for %s",
-                            uid, email["id"],
-                        )
-                else:
-                    log.warning(
-                        "[%s] alert not delivered for %s; will retry next tick",
-                        uid, email["id"],
-                    )
-                    continue
-
                 log.info("[%s] summarizing: %s", uid, email["subject"][:60])
                 summary = summarize_email(llm_client, email, cfg)
 
@@ -692,15 +708,30 @@ def process_user(
                     suggested_response=summary.get("suggested_response") or "",
                 )
 
-                urg = (summary.get("urgency") or "low").upper()
-                caption = f"{email['subject']}\nUrgency: {urg}"
-                send_document(uid, pdf_path, caption)
+                msg = _compose_telegram_msg(email, summary)
+                # Mark seen only after Telegram confirms delivery; on failure
+                # the email gets re-processed next tick (idempotent: PDF +
+                # Firestore upserts overwrite). Costs one repeat LLM call.
+                alert_ok = send_document(uid, pdf_path, msg)
+                if alert_ok:
+                    seen_ids.append(email["id"])
+                    seen.add(email["id"])
+                    try:
+                        save_user_state(db, uid, seen_ids)
+                    except Exception:  # noqa: BLE001 - best-effort persist
+                        log.exception(
+                            "[%s] state save failed for %s",
+                            uid, email["id"],
+                        )
+                else:
+                    log.warning(
+                        "[%s] alert not delivered for %s; will retry next tick",
+                        uid, email["id"],
+                    )
             except Exception as e:  # noqa: BLE001 - per-email isolation
                 log.exception(
                     "[%s] failed processing %s: %s", uid, email["id"], e
                 )
-                # Already in seen_ids from the early save above; the user
-                # got the alert, just not the PDF — don't re-alert next tick.
 
         save_user_state(db, uid, seen_ids)
         log.info("[%s] state saved (%d ids)", uid, len(seen_ids[-MAX_PROCESSED:]))
