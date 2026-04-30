@@ -54,12 +54,11 @@ from firestore_telegram import (
     delete_telegram_link,
     find_telegram_link,
 )
-from embeddings import embed_text
 from firestore_activity import get_db
-from firestore_embeddings import search_embeddings
 from firestore_folders import fetch_folder, list_folders
 from firestore_sessions import clear_session, get_session, set_folder_scope
 from google.api_core import exceptions as gax
+from rag_core import answer_question
 
 # ---------- Config ----------
 BASE_DIR = Path(__file__).parent.resolve()
@@ -97,14 +96,6 @@ conversation_history: list = []
 MAX_TURNS = 16  # smaller than Anthropic version - 8B context is tighter
 MAX_TOOL_LOOPS = 6  # safety cap so a confused model can't loop forever
 
-# Folder-scoped RAG knobs
-RAG_K = 5
-# Cosine distance: 0 = identical, 1 = orthogonal. embeddinggemma is asymmetric
-# (query and passage embeddings drift apart) so short queries against rich
-# corpora measured ~0.61–0.68 even for direct hits ("비빔밥" against an email
-# listing 비빔밥 was 0.675). 0.7 keeps NotebookLM-style refusal for truly
-# unrelated content while letting through real matches.
-RAG_DISTANCE_THRESHOLD = 0.7
 RAG_FOLDERS_PAGE_SIZE = 20
 
 
@@ -793,71 +784,17 @@ async def _answer_in_scope(update: Update, question: str) -> None:
     subject = session.get("currentSubject") or slug
 
     await update.message.chat.send_action("typing")
-    try:
-        qvec = embed_text(question)
-        hits = search_embeddings(db, uid, slug, qvec, k=RAG_K)
-    except (OpenAIError, OSError, ValueError, gax.GoogleAPIError) as exc:
-        log.exception("RAG retrieval failed (uid=%s slug=%s): %s", uid, slug, exc)
-        await update.message.reply_text(GENERIC_ERROR_REPLY)
-        return
-
-    relevant = [
-        h for h in hits
-        if h.get("distance", 1.0) <= RAG_DISTANCE_THRESHOLD
-    ]
+    answer, meta = answer_question(
+        db, uid, slug, subject, question,
+        style_hint="short — Telegram messages, not essays",
+        error_reply=GENERIC_ERROR_REPLY,
+    )
     log.info(
         "ask uid=%s slug=%s hits=%d relevant=%d top_dist=%.3f",
-        uid, slug, len(hits), len(relevant),
-        hits[0]["distance"] if hits else 1.0,
+        uid, slug, meta["hits"], meta["relevant"], meta["top_dist"],
     )
-    if not relevant:
-        await update.message.reply_text(
-            f"I don't have anything in folder '{subject[:60]}' about that. "
-            f"Try /folders to switch."
-        )
-        return
-
-    answer = _grounded_answer(question, subject, relevant)
     for i in range(0, len(answer), 4000):
         await update.message.reply_text(answer[i:i + 4000])
-
-
-def _grounded_answer(question: str, subject: str, hits: list[dict]) -> str:
-    """NotebookLM-style: answer ONLY from retrieved context, refuse otherwise."""
-    blocks = []
-    for i, h in enumerate(hits, 1):
-        sender = h.get("senderName") or "(unknown)"
-        subj = h.get("subject") or ""
-        body = (h.get("text") or "").strip()
-        blocks.append(f"[{i}] From: {sender} | Subject: {subj}\n{body}")
-    context = "\n\n".join(blocks)
-    system = (
-        "You answer the user's question using ONLY the provided email summaries. "
-        "If the answer is not contained in the context, reply exactly: "
-        "\"I don't have that in this folder.\" "
-        "Do not invent, speculate, or use outside knowledge. "
-        "Keep replies short — Telegram messages, not essays. "
-        "When citing, refer to senders by name."
-    )
-    user = (
-        f"Folder: {subject}\n\n"
-        f"Context:\n{context}\n\n"
-        f"Question: {question}\n\n"
-        f"Answer:"
-    )
-    try:
-        resp = llm.chat.completions.create(
-            model=OLLAMA_MODEL,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-            temperature=0.1,
-        )
-        return (resp.choices[0].message.content or "").strip() or "(no response)"
-    except (OpenAIError, OSError) as exc:
-        log.exception("grounded LLM call failed: %s", exc)
-        return GENERIC_ERROR_REPLY
 
 
 async def handle_message(update: Update, _: ContextTypes.DEFAULT_TYPE):
