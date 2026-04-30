@@ -62,3 +62,60 @@
   subject: "Fwd: Test: 백혈병 예방법"
   question: 몇살부터 조심해야나요?
   expected_refusal: true
+
+# --- Cases harvested from bridge.log for RAG v3 (contextual retrieval) baseline.
+# Distance values noted are observed under v2; v3 should improve them.
+
+- name: korean-food-direct
+  uid: lRyuYHeqE4bdATrO50cMEr8p79a2
+  subject_slug: test-요즘-한국에서-가장-유명한-음식
+  subject: "Fwd: Test: 요즘 한국에서 가장 유명한 음식"
+  question: 한국음식은?
+  min_relevant_count: 1
+  max_top_distance: 0.55          # v2 historical: 0.439
+
+- name: leukemia-prevention-most-important
+  uid: lRyuYHeqE4bdATrO50cMEr8p79a2
+  subject_slug: test-백혈병-예방법
+  subject: "Fwd: Test: 백혈병 예방법"
+  question: 가장 중요한 예방은?
+  min_relevant_count: 1
+  max_top_distance: 0.7           # v2 historical: 0.629
+  expected_keywords: [예방]
+
+- name: leukemia-treatment
+  # KNOWN-FAIL on v2 baseline (top_dist=0.727, just above 0.7 threshold). Kept
+  # as a tripwire — when a retrieval improvement lifts this above threshold,
+  # the eval will start passing the case.
+  uid: lRyuYHeqE4bdATrO50cMEr8p79a2
+  subject_slug: test-백혈병-예방법
+  subject: "Fwd: Test: 백혈병 예방법"
+  question: 어떤 치료 방법이 있나요?
+  min_relevant_count: 1
+
+- name: leukemia-prevention-typo
+  # Typo'd Korean ("할 슈 잇나요" instead of "할 수 있나요") — robustness test.
+  uid: lRyuYHeqE4bdATrO50cMEr8p79a2
+  subject_slug: test-백혈병-예방법
+  subject: "Fwd: Test: 백혈병 예방법"
+  question: 어떻게 예방할 슈 잇나요?
+  min_relevant_count: 1
+  max_top_distance: 0.6           # v2 historical: 0.554
+  expected_keywords: [식습관]
+
+- name: leukemia-prevention-terse
+  uid: lRyuYHeqE4bdATrO50cMEr8p79a2
+  subject_slug: test-백혈병-예방법
+  subject: "Fwd: Test: 백혈병 예방법"
+  question: 예방 방법
+  min_relevant_count: 1
+  max_top_distance: 0.65          # v2 historical: 0.620
+  expected_keywords: [식습관]
+
+- name: leukemia-out-of-scope-food
+  # Food question against leukemia folder — must refuse, not cross-bleed.
+  uid: lRyuYHeqE4bdATrO50cMEr8p79a2
+  subject_slug: test-백혈병-예방법
+  subject: "Fwd: Test: 백혈병 예방법"
+  question: 음식 추천해줘
+  expected_refusal: true
