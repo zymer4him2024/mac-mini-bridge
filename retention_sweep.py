@@ -29,6 +29,7 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 from google.api_core import exceptions as gax
 
+from firebase_storage import delete_old_user_blobs
 from firestore_activity import report_run
 from firestore_audit import record_audit
 from firestore_users import enumerate_linked_users, load_user_config
@@ -41,6 +42,29 @@ FIRESTORE_DB_ID = os.environ.get("FIRESTORE_DATABASE_ID", "email2ppt")
 
 PDF_ROOT = Path.home() / "email-pdfs"
 DIGEST_ROOT = Path.home() / "email-digests"
+
+
+def _find_pdf_user_dirs(uid: str) -> list[Path]:
+    """PDF dirs may be email-named (new) or uid-named (legacy). Find both.
+
+    Email-named dirs carry a `.uid` marker file written by the watcher so we
+    can map back to the owning uid without consulting Firestore.
+    """
+    found: list[Path] = []
+    legacy = PDF_ROOT / uid
+    if legacy.exists():
+        found.append(legacy)
+    if PDF_ROOT.exists():
+        for child in PDF_ROOT.iterdir():
+            if not child.is_dir() or child == legacy:
+                continue
+            marker = child / ".uid"
+            try:
+                if marker.is_file() and marker.read_text().strip() == uid:
+                    found.append(child)
+            except OSError:
+                continue
+    return found
 
 LOG_PATH = BASE_DIR / "retention_sweep.log"
 logging.basicConfig(
@@ -105,8 +129,14 @@ def _sweep_dir(root: Path, cutoff_ts: float) -> tuple[int, int]:
 def sweep_user(uid: str, retention_days: int) -> dict:
     """Sweep one user's directories. Returns metrics dict for the activity feed."""
     cutoff = time.time() - retention_days * 86400
-    pdf_files, pdf_bytes = _sweep_dir(PDF_ROOT / uid, cutoff)
+    pdf_files = 0
+    pdf_bytes = 0
+    for pdf_dir in _find_pdf_user_dirs(uid):
+        f, b = _sweep_dir(pdf_dir, cutoff)
+        pdf_files += f
+        pdf_bytes += b
     digest_files, digest_bytes = _sweep_dir(DIGEST_ROOT / uid, cutoff)
+    storage_objs, storage_bytes = delete_old_user_blobs(uid, cutoff)
     return {
         "retentionDays": retention_days,
         "cutoffIso": datetime.fromtimestamp(cutoff, tz=timezone.utc).isoformat(),
@@ -114,6 +144,8 @@ def sweep_user(uid: str, retention_days: int) -> dict:
         "pdfBytesDeleted": pdf_bytes,
         "digestsDeleted": digest_files,
         "digestBytesDeleted": digest_bytes,
+        "storageObjectsDeleted": storage_objs,
+        "storageBytesDeleted": storage_bytes,
     }
 
 
@@ -147,11 +179,16 @@ def main() -> None:
         line = (
             f"uid={uid} pdfs={metrics['pdfsDeleted']} "
             f"digests={metrics['digestsDeleted']} "
+            f"storage={metrics['storageObjectsDeleted']} "
             f"retention={metrics['retentionDays']}d"
         )
         summary.append(line)
         log.info(line)
-        if metrics["pdfsDeleted"] or metrics["digestsDeleted"]:
+        if (
+            metrics["pdfsDeleted"]
+            or metrics["digestsDeleted"]
+            or metrics["storageObjectsDeleted"]
+        ):
             report_run(
                 "retention_sweep",
                 "ok",

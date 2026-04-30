@@ -400,9 +400,17 @@ def _subject_slug(subject: str) -> str:
     s = subject or ""
     while _REPLY_PREFIX.match(s):
         s = _REPLY_PREFIX.sub("", s, count=1)
-    s = re.sub(r"[^a-zA-Z0-9 _-]", "", s).strip().lower()
-    s = re.sub(r"\s+", "-", s)
-    return s[:80] or "no-subject"
+    # Strip filesystem-unsafe chars only; preserve Unicode (Hangul / kana /
+    # CJK ideographs) so each subject lands in its own readable folder.
+    s = re.sub(r'[\\/:*?"<>|\x00-\x1f]', "", s)
+    s = re.sub(r"\s+", "-", s.strip()).strip("-.").lower()
+    s = s[:80]
+    # Cap UTF-8 bytes for worst-case 4-byte CJK so the directory name stays
+    # under the 255-byte filesystem limit. Decode-with-ignore prevents a
+    # truncated multibyte sequence from being kept as half a codepoint.
+    if len(s.encode("utf-8")) > 200:
+        s = s.encode("utf-8")[:200].decode("utf-8", errors="ignore")
+    return s or "no-subject"
 
 
 def write_sidecar(pdf_path: Path, email: dict, summary: dict) -> None:
@@ -582,8 +590,17 @@ def process_user(
             )
             return
 
-        user_pdf_dir = OUTPUT_DIR / uid
+        # PDFs are stored under the user's Gmail address (when linked) so
+        # operators browsing the host filesystem can tell whose folder is
+        # whose. Falls back to the opaque uid when no email is on file.
+        # A `.uid` marker is written inside so retention / GDPR cleanup can
+        # map an email-named directory back to the uid it belongs to.
+        user_pdf_dir = OUTPUT_DIR / (self_email or uid)
         user_pdf_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            (user_pdf_dir / ".uid").write_text(uid)
+        except OSError:  # marker is best-effort; cleanup degrades to legacy path
+            log.warning("[%s] failed to write .uid marker in %s", uid, user_pdf_dir)
 
         for email in new_emails:
             try:

@@ -32,6 +32,7 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 from google.api_core import exceptions as gax
 
+from firebase_storage import delete_user_blobs
 from firestore_activity import report_run
 from firestore_audit import record_audit
 
@@ -41,11 +42,36 @@ load_dotenv(BASE_DIR / ".env")
 SERVICE_ACCOUNT = BASE_DIR / "firebase-service-account.json"
 FIRESTORE_DB_ID = os.environ.get("FIRESTORE_DATABASE_ID", "email2ppt")
 
-USER_DIRS = [
-    Path.home() / "email-pdfs",
+PDF_ROOT = Path.home() / "email-pdfs"
+# Digests and ppts stay uid-named; PDFs may be email-named (new layout) or
+# uid-named (legacy) — handled via _find_pdf_user_dirs.
+UID_ONLY_DIRS = [
     Path.home() / "email-digests",
     Path.home() / "email-ppts",
 ]
+
+
+def _find_pdf_user_dirs(uid: str) -> list[Path]:
+    """PDF dirs may be email-named (new) or uid-named (legacy). Find both.
+
+    Email-named dirs carry a `.uid` marker file written by the watcher so we
+    can map back to the owning uid even after Firestore data has been wiped.
+    """
+    found: list[Path] = []
+    legacy = PDF_ROOT / uid
+    if legacy.exists():
+        found.append(legacy)
+    if PDF_ROOT.exists():
+        for child in PDF_ROOT.iterdir():
+            if not child.is_dir() or child == legacy:
+                continue
+            marker = child / ".uid"
+            try:
+                if marker.is_file() and marker.read_text().strip() == uid:
+                    found.append(child)
+            except OSError:
+                continue
+    return found
 
 LOG_PATH = BASE_DIR / "gdpr_local_cleanup.log"
 logging.basicConfig(
@@ -73,8 +99,10 @@ def _purge_user_dirs(uid: str) -> dict:
     """Delete every per-user output directory. Returns metrics."""
     removed = []
     bytes_freed = 0
-    for root in USER_DIRS:
-        target = root / uid
+    targets = _find_pdf_user_dirs(uid) + [
+        root / uid for root in UID_ONLY_DIRS
+    ]
+    for target in targets:
         if not target.exists():
             continue
         # Tally size before deletion for the audit record.
@@ -89,7 +117,13 @@ def _purge_user_dirs(uid: str) -> dict:
             removed.append(str(target))
         except OSError as exc:
             log.warning("failed to remove %s: %s", target, exc)
-    return {"directoriesRemoved": removed, "bytesFreed": bytes_freed}
+    storage_objs, storage_bytes = delete_user_blobs(uid)
+    return {
+        "directoriesRemoved": removed,
+        "bytesFreed": bytes_freed,
+        "storageObjectsDeleted": storage_objs,
+        "storageBytesDeleted": storage_bytes,
+    }
 
 
 def main() -> None:
