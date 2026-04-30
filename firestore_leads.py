@@ -30,6 +30,13 @@ def _lead_id(sender_email: str, subject_slug: str) -> str:
     return hashlib.sha1(key.encode("utf-8")).hexdigest()[:16]
 
 
+def compute_lead_id(sender_email: str, subject_slug: str) -> str:
+    """Public alias of `_lead_id` for callers outside this module (RAG index
+    hook, backfill scripts) that need the same key without re-implementing
+    the hash."""
+    return _lead_id(sender_email, subject_slug)
+
+
 def upsert_lead(
     db,
     uid: str,
@@ -41,6 +48,9 @@ def upsert_lead(
     urgency: str,
     pdf_filename: str,
     suggested_response: str,
+    context: list[str] | None = None,
+    key_points: list[str] | None = None,
+    asks: list[str] | None = None,
 ) -> None:
     """Upsert a lead row keyed by (sender_email, subject_slug). Never raises."""
     if not uid or not sender_email:
@@ -67,6 +77,9 @@ def upsert_lead(
             "urgency": urgency or "low",
             "lastPdfFilename": pdf_filename,
             "lastSummaryResponse": suggested_response or "",
+            "lastContext": list(context or []),
+            "lastKeyPoints": list(key_points or []),
+            "lastAsks": list(asks or []),
             "lastSeenAt": SERVER_TIMESTAMP,
             "updatedAt": SERVER_TIMESTAMP,
             "interactionCount": int(existing.get("interactionCount", 0)) + 1,
@@ -88,3 +101,17 @@ def upsert_lead(
             lead_id,
             exc,
         )
+
+
+def list_leads_for_folder(db, uid: str, subject_slug: str) -> list[dict]:
+    """Return all leads under one folder. Used by the embeddings backfill
+    (Phase 4) to enumerate per-folder messages already on disk."""
+    if not uid or not subject_slug:
+        return []
+    coll = db.collection("users").document(uid).collection("leads")
+    out: list[dict] = []
+    for snap in coll.where("subjectSlug", "==", subject_slug).stream():
+        d = snap.to_dict() or {}
+        d["leadId"] = snap.id
+        out.append(d)
+    return out

@@ -41,11 +41,13 @@ SUMMARY_FILENAME = "_summary.csv"
 # fallback. Importing it before load_dotenv leaves both as empty strings.
 load_dotenv(BASE_DIR / ".env")
 
+from embeddings import build_rag_text, embed_text  # noqa: E402
 from firestore_activity import get_db, report_run  # noqa: E402
 from firestore_alerts import send_document  # noqa: E402
+from firestore_embeddings import upsert_embedding  # noqa: E402
 from firestore_folders import upsert_folder_item  # noqa: E402
 from firebase_storage import upload_pdf, upload_summary_csv  # noqa: E402
-from firestore_leads import upsert_lead  # noqa: E402
+from firestore_leads import compute_lead_id, upsert_lead  # noqa: E402
 from mime_extract import extract_body, decode_header_value  # noqa: E402
 from lang_hint import detect_dominant_script, language_directive  # noqa: E402
 from firestore_state import (  # noqa: E402
@@ -706,7 +708,42 @@ def process_user(
                     urgency=(summary.get("urgency") or "low"),
                     pdf_filename=pdf_path.name,
                     suggested_response=summary.get("suggested_response") or "",
+                    context=summary.get("context") or [],
+                    key_points=summary.get("key_points") or [],
+                    asks=summary.get("asks") or [],
                 )
+
+                # Best-effort RAG index. The wide except is intentional: a
+                # failure here (Ollama down, Firestore VS hiccup, malformed
+                # embedding) must never block alert/digest/PDF delivery.
+                rag_text = build_rag_text(
+                    subject=email["subject"],
+                    sender_name=sender_name,
+                    context=summary.get("context") or [],
+                    key_points=summary.get("key_points") or [],
+                    asks=summary.get("asks") or [],
+                    suggested_response=summary.get("suggested_response") or "",
+                )
+                if rag_text.strip():
+                    try:
+                        lead_id = compute_lead_id(sender_email, subject_slug)
+                        vec = embed_text(rag_text)
+                        upsert_embedding(
+                            get_db(),
+                            uid,
+                            subject_slug=subject_slug,
+                            lead_id=lead_id,
+                            message_id=email["id"],
+                            text=rag_text,
+                            vector=vec,
+                            subject=email["subject"],
+                            sender_name=sender_name,
+                        )
+                    except Exception:  # noqa: BLE001 - best-effort RAG hook
+                        log.warning(
+                            "[%s] RAG index failed for msg=%s; alert path unaffected",
+                            uid, email["id"], exc_info=True,
+                        )
 
                 msg = _compose_telegram_msg(email, summary)
                 # Mark seen only after Telegram confirms delivery; on failure

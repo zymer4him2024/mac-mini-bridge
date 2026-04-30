@@ -54,6 +54,12 @@ from firestore_telegram import (
     delete_telegram_link,
     find_telegram_link,
 )
+from embeddings import embed_text
+from firestore_activity import get_db
+from firestore_embeddings import search_embeddings
+from firestore_folders import fetch_folder, list_folders
+from firestore_sessions import clear_session, get_session, set_folder_scope
+from google.api_core import exceptions as gax
 
 # ---------- Config ----------
 BASE_DIR = Path(__file__).parent.resolve()
@@ -90,6 +96,16 @@ llm = OpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama-local")
 conversation_history: list = []
 MAX_TURNS = 16  # smaller than Anthropic version - 8B context is tighter
 MAX_TOOL_LOOPS = 6  # safety cap so a confused model can't loop forever
+
+# Folder-scoped RAG knobs
+RAG_K = 5
+# Cosine distance: 0 = identical, 1 = orthogonal. embeddinggemma is asymmetric
+# (query and passage embeddings drift apart) so short queries against rich
+# corpora measured ~0.61–0.68 even for direct hits ("비빔밥" against an email
+# listing 비빔밥 was 0.675). 0.7 keeps NotebookLM-style refusal for truly
+# unrelated content while letting through real matches.
+RAG_DISTANCE_THRESHOLD = 0.7
+RAG_FOLDERS_PAGE_SIZE = 20
 
 
 # ---------- Gmail helpers ----------
@@ -550,6 +566,9 @@ async def help_command(update: Update, _: ContextTypes.DEFAULT_TYPE):
             "/unlink — disconnect this Telegram\n"
             "/push — get your latest digest now\n"
             "/ppt <query> — generate a PowerPoint from emails\n"
+            "/folders — pick a folder to ask questions about\n"
+            "/ask <q> — ask within the picked folder\n"
+            "/clear — clear the active folder scope\n"
             "/reset — clear conversation history\n"
             "/help — show this list"
         )
@@ -636,6 +655,211 @@ async def trigger_ppt(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(GENERIC_ERROR_REPLY)
 
 
+async def folders_cmd(update: Update, _: ContextTypes.DEFAULT_TYPE):
+    """List the user's folders as inline-keyboard buttons. Selecting one
+    pins it as the scope for /ask (and plain-text DMs)."""
+    if not authorized(update):
+        return
+    chat_id = update.effective_chat.id
+    try:
+        link = find_telegram_link(chat_id)
+    except (FileNotFoundError, OSError) as exc:
+        log.exception("find_telegram_link failed in /folders: %s", exc)
+        await update.message.reply_text(GENERIC_ERROR_REPLY)
+        return
+    if not link:
+        await update.message.reply_text(
+            "You're not connected to email2ppt yet. Use /start to link."
+        )
+        return
+    uid = link["uid"]
+    try:
+        folders = list_folders(get_db(), uid, limit=RAG_FOLDERS_PAGE_SIZE)
+    except (FileNotFoundError, OSError, gax.GoogleAPIError) as exc:
+        log.exception("list_folders failed: %s", exc)
+        await update.message.reply_text(GENERIC_ERROR_REPLY)
+        return
+    if not folders:
+        await update.message.reply_text(
+            "No folders yet. They appear automatically as priority emails arrive."
+        )
+        return
+    rows = []
+    for f in folders:
+        slug = f.get("subjectSlug") or ""
+        if not slug:
+            continue
+        label = (f.get("subject") or slug)[:40]
+        pdf_count = int(f.get("pdfCount", 0) or 0)
+        if pdf_count:
+            label = f"{label} ({pdf_count})"
+        rows.append([InlineKeyboardButton(label, callback_data=f"folder:{slug}")])
+    if not rows:
+        await update.message.reply_text("No folders to show.")
+        return
+    await update.message.reply_text(
+        f"Pick a folder to ask questions about ({len(rows)} shown):",
+        reply_markup=InlineKeyboardMarkup(rows),
+    )
+
+
+async def folder_picker_callback(update: Update, _: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    data = query.data or ""
+    if not data.startswith("folder:"):
+        return
+    slug = data[len("folder:"):]
+    chat_id = query.message.chat.id
+    try:
+        link = find_telegram_link(chat_id)
+    except (FileNotFoundError, OSError) as exc:
+        log.exception("find_telegram_link failed in folder_picker_callback: %s", exc)
+        await query.edit_message_text(GENERIC_ERROR_REPLY)
+        return
+    if not link:
+        await query.edit_message_text("You're not connected to email2ppt.")
+        return
+    uid = link["uid"]
+    db = get_db()
+    folder = fetch_folder(db, uid, slug)
+    subject = (folder or {}).get("subject", "") or slug
+    try:
+        set_folder_scope(db, uid, slug, subject=subject)
+    except (ValueError, FileNotFoundError, OSError, gax.GoogleAPIError) as exc:
+        log.exception("set_folder_scope failed: %s", exc)
+        await query.edit_message_text(GENERIC_ERROR_REPLY)
+        return
+    await query.edit_message_text(
+        f"📁 Scoped to '{subject[:80]}'. Ask anything about it. /clear to switch."
+    )
+
+
+async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not authorized(update):
+        return
+    question = " ".join(ctx.args).strip() if ctx.args else ""
+    if not question:
+        await update.message.reply_text(
+            "Usage: /ask <your question>. Pick a folder first with /folders."
+        )
+        return
+    await _answer_in_scope(update, question)
+
+
+async def clear_cmd(update: Update, _: ContextTypes.DEFAULT_TYPE):
+    if not authorized(update):
+        return
+    chat_id = update.effective_chat.id
+    try:
+        link = find_telegram_link(chat_id)
+    except (FileNotFoundError, OSError) as exc:
+        log.exception("find_telegram_link failed in /clear: %s", exc)
+        await update.message.reply_text(GENERIC_ERROR_REPLY)
+        return
+    if not link:
+        await update.message.reply_text("You're not connected to email2ppt.")
+        return
+    try:
+        clear_session(get_db(), link["uid"])
+    except (FileNotFoundError, OSError, gax.GoogleAPIError) as exc:
+        log.exception("clear_session failed: %s", exc)
+        await update.message.reply_text(GENERIC_ERROR_REPLY)
+        return
+    await update.message.reply_text("Folder scope cleared. /folders to pick again.")
+
+
+async def _answer_in_scope(update: Update, question: str) -> None:
+    """Shared implementation for /ask and scoped plain-text DMs."""
+    chat_id = update.effective_chat.id
+    try:
+        link = find_telegram_link(chat_id)
+    except (FileNotFoundError, OSError) as exc:
+        log.exception("find_telegram_link failed in _answer_in_scope: %s", exc)
+        await update.message.reply_text(GENERIC_ERROR_REPLY)
+        return
+    if not link:
+        await update.message.reply_text(
+            "You're not connected to email2ppt yet. Use /start to link."
+        )
+        return
+    uid = link["uid"]
+    db = get_db()
+    session = get_session(db, uid)
+    if not session or not session.get("currentFolderSlug"):
+        await update.message.reply_text("Pick a folder first: /folders")
+        return
+    slug = session["currentFolderSlug"]
+    subject = session.get("currentSubject") or slug
+
+    await update.message.chat.send_action("typing")
+    try:
+        qvec = embed_text(question)
+        hits = search_embeddings(db, uid, slug, qvec, k=RAG_K)
+    except (OpenAIError, OSError, ValueError, gax.GoogleAPIError) as exc:
+        log.exception("RAG retrieval failed (uid=%s slug=%s): %s", uid, slug, exc)
+        await update.message.reply_text(GENERIC_ERROR_REPLY)
+        return
+
+    relevant = [
+        h for h in hits
+        if h.get("distance", 1.0) <= RAG_DISTANCE_THRESHOLD
+    ]
+    log.info(
+        "ask uid=%s slug=%s hits=%d relevant=%d top_dist=%.3f",
+        uid, slug, len(hits), len(relevant),
+        hits[0]["distance"] if hits else 1.0,
+    )
+    if not relevant:
+        await update.message.reply_text(
+            f"I don't have anything in folder '{subject[:60]}' about that. "
+            f"Try /folders to switch."
+        )
+        return
+
+    answer = _grounded_answer(question, subject, relevant)
+    for i in range(0, len(answer), 4000):
+        await update.message.reply_text(answer[i:i + 4000])
+
+
+def _grounded_answer(question: str, subject: str, hits: list[dict]) -> str:
+    """NotebookLM-style: answer ONLY from retrieved context, refuse otherwise."""
+    blocks = []
+    for i, h in enumerate(hits, 1):
+        sender = h.get("senderName") or "(unknown)"
+        subj = h.get("subject") or ""
+        body = (h.get("text") or "").strip()
+        blocks.append(f"[{i}] From: {sender} | Subject: {subj}\n{body}")
+    context = "\n\n".join(blocks)
+    system = (
+        "You answer the user's question using ONLY the provided email summaries. "
+        "If the answer is not contained in the context, reply exactly: "
+        "\"I don't have that in this folder.\" "
+        "Do not invent, speculate, or use outside knowledge. "
+        "Keep replies short — Telegram messages, not essays. "
+        "When citing, refer to senders by name."
+    )
+    user = (
+        f"Folder: {subject}\n\n"
+        f"Context:\n{context}\n\n"
+        f"Question: {question}\n\n"
+        f"Answer:"
+    )
+    try:
+        resp = llm.chat.completions.create(
+            model=OLLAMA_MODEL,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            temperature=0.1,
+        )
+        return (resp.choices[0].message.content or "").strip() or "(no response)"
+    except (OpenAIError, OSError) as exc:
+        log.exception("grounded LLM call failed: %s", exc)
+        return GENERIC_ERROR_REPLY
+
+
 async def handle_message(update: Update, _: ContextTypes.DEFAULT_TYPE):
     if not authorized(update):
         log.info(f"Non-admin message from chat_id={update.effective_chat.id}")
@@ -652,6 +876,23 @@ async def handle_message(update: Update, _: ContextTypes.DEFAULT_TYPE):
     if text.strip().lower() in ("push", "/push"):
         await trigger_digest(update, _)
         return
+
+    # If a folder is currently scoped, route plain-text DMs as a grounded ask.
+    chat_id = update.effective_chat.id
+    try:
+        link = find_telegram_link(chat_id)
+    except (FileNotFoundError, OSError) as exc:
+        log.warning("find_telegram_link failed in handle_message: %s", exc)
+        link = None
+    if link:
+        try:
+            session = get_session(get_db(), link["uid"])
+        except (FileNotFoundError, OSError, gax.GoogleAPIError) as exc:
+            log.warning("get_session failed: %s", exc)
+            session = None
+        if session and session.get("currentFolderSlug"):
+            await _answer_in_scope(update, text)
+            return
 
     await update.message.chat.send_action("typing")
 
@@ -676,7 +917,11 @@ def main():
     app.add_handler(CommandHandler("reset", reset))
     app.add_handler(CommandHandler("push", trigger_digest))
     app.add_handler(CommandHandler("ppt", trigger_ppt))
+    app.add_handler(CommandHandler("folders", folders_cmd))
+    app.add_handler(CommandHandler("ask", ask_cmd))
+    app.add_handler(CommandHandler("clear", clear_cmd))
     app.add_handler(CallbackQueryHandler(unlink_callback, pattern=r"^unlink:"))
+    app.add_handler(CallbackQueryHandler(folder_picker_callback, pattern=r"^folder:"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.run_polling(drop_pending_updates=True)
 

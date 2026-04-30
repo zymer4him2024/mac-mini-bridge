@@ -35,6 +35,7 @@ from google.api_core import exceptions as gax
 from firebase_storage import delete_user_blobs
 from firestore_activity import report_run
 from firestore_audit import record_audit
+from firestore_embeddings import delete_embeddings_for_user
 
 BASE_DIR = Path(__file__).parent.resolve()
 load_dotenv(BASE_DIR / ".env")
@@ -145,6 +146,17 @@ def main() -> None:
         uid = job_id
         try:
             metrics = _purge_user_dirs(uid)
+            try:
+                metrics["embeddingsDeleted"] = delete_embeddings_for_user(
+                    db, uid
+                )
+            except gax.GoogleAPIError as exc:
+                # Local artifact purge already succeeded; treat embedding
+                # delete failure as a soft error so the job still marks done.
+                log.warning(
+                    "uid=%s embeddings delete failed: %s", uid, exc
+                )
+                metrics["embeddingsDeleted"] = 0
         except OSError as exc:
             log.warning("uid=%s purge failed: %s", uid, exc)
             db.collection("gdpr_cleanup_jobs").document(job_id).set(

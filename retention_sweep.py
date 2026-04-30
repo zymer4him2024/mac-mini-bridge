@@ -32,6 +32,7 @@ from google.api_core import exceptions as gax
 from firebase_storage import delete_old_user_blobs
 from firestore_activity import report_run
 from firestore_audit import record_audit
+from firestore_embeddings import delete_stale_embeddings
 from firestore_users import enumerate_linked_users, load_user_config
 
 BASE_DIR = Path(__file__).parent.resolve()
@@ -126,9 +127,10 @@ def _sweep_dir(root: Path, cutoff_ts: float) -> tuple[int, int]:
     return (files_deleted, bytes_deleted)
 
 
-def sweep_user(uid: str, retention_days: int) -> dict:
+def sweep_user(db, uid: str, retention_days: int) -> dict:
     """Sweep one user's directories. Returns metrics dict for the activity feed."""
     cutoff = time.time() - retention_days * 86400
+    cutoff_dt = datetime.fromtimestamp(cutoff, tz=timezone.utc)
     pdf_files = 0
     pdf_bytes = 0
     for pdf_dir in _find_pdf_user_dirs(uid):
@@ -137,15 +139,21 @@ def sweep_user(uid: str, retention_days: int) -> dict:
         pdf_bytes += b
     digest_files, digest_bytes = _sweep_dir(DIGEST_ROOT / uid, cutoff)
     storage_objs, storage_bytes = delete_old_user_blobs(uid, cutoff)
+    try:
+        embeddings_deleted = delete_stale_embeddings(db, uid, cutoff_dt)
+    except gax.GoogleAPIError as exc:
+        log.warning("uid=%s stale embeddings delete failed: %s", uid, exc)
+        embeddings_deleted = 0
     return {
         "retentionDays": retention_days,
-        "cutoffIso": datetime.fromtimestamp(cutoff, tz=timezone.utc).isoformat(),
+        "cutoffIso": cutoff_dt.isoformat(),
         "pdfsDeleted": pdf_files,
         "pdfBytesDeleted": pdf_bytes,
         "digestsDeleted": digest_files,
         "digestBytesDeleted": digest_bytes,
         "storageObjectsDeleted": storage_objs,
         "storageBytesDeleted": storage_bytes,
+        "embeddingsDeleted": embeddings_deleted,
     }
 
 
@@ -164,7 +172,7 @@ def main() -> None:
     for uid in uids:
         try:
             cfg = load_user_config(db, uid)
-            metrics = sweep_user(uid, cfg["retentionDays"])
+            metrics = sweep_user(db, uid, cfg["retentionDays"])
         except (gax.GoogleAPIError, OSError, ValueError) as exc:
             log.warning("uid=%s sweep failed: %s", uid, exc)
             report_run(
@@ -180,6 +188,7 @@ def main() -> None:
             f"uid={uid} pdfs={metrics['pdfsDeleted']} "
             f"digests={metrics['digestsDeleted']} "
             f"storage={metrics['storageObjectsDeleted']} "
+            f"embeddings={metrics['embeddingsDeleted']} "
             f"retention={metrics['retentionDays']}d"
         )
         summary.append(line)
@@ -188,6 +197,7 @@ def main() -> None:
             metrics["pdfsDeleted"]
             or metrics["digestsDeleted"]
             or metrics["storageObjectsDeleted"]
+            or metrics["embeddingsDeleted"]
         ):
             report_run(
                 "retention_sweep",
