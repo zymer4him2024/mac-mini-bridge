@@ -1,0 +1,20 @@
+rules_version = '2';
+
+// Shomery Storage rules.
+// v1 markdown seam: the Python pipeline writes summaries to
+//   summaries/{uid}/{subjectSlug}/{emailId}
+// using the Admin SDK. Web reads are scoped per-uid; web cannot write
+// (only the pipeline writes).
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    match /summaries/{uid}/{subjectSlug}/{emailId} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

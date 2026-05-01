@@ -1,0 +1,124 @@
+{
+  "signIn": {
+    "headline": "Read once. Ask anything.",
+    "subhead": "A private notebook for everything in your inbox.",
+    "googleButton": "Continue with Google",
+    "googleButtonPending": "Signing in…",
+    "errorTryAgain": "Sign-in didn't go through. Please try again.",
+    "microcopy": "No card required. 2-minute setup. Your data stays in your Drive."
+  },
+  "nav": {
+    "inbox": "Inbox",
+    "subjectsHeader": "Subjects",
+    "settings": "Settings",
+    "signOut": "Sign out"
+  },
+  "feed": {
+    "title": "Inbox",
+    "loading": "Loading…",
+    "empty": "We're watching for your first email.",
+    "unknownSender": "Unknown sender",
+    "senderLine": "📬 {from}",
+    "urgency": {
+      "high": "HIGH",
+      "med": "MED",
+      "low": "LOW"
+    },
+    "pdf": {
+      "openLabel": "Open PDF",
+      "openLabelFor": "Open PDF — {filename}",
+      "pendingLabel": "📄 {filename}",
+      "linkLabel": "📄 {filename} ↗"
+    }
+  },
+  "subjects": {
+    "navEmpty": "No subjects yet — we'll add one when your first watched email arrives.",
+    "navLoading": "Loading…",
+    "detailEmpty": "No items in this subject yet.",
+    "detailNotFound": "Subject not found.",
+    "itemCount": "{count, plural, one {# item} other {# items}}"
+  },
+  "settings": {
+    "title": "Settings",
+    "loading": "Loading…",
+    "watchedSenders": {
+      "label": "Watched senders",
+      "helpText": "We summarize emails from these senders or domains. Use a full address (alice@example.com) or a domain (@acme.com).",
+      "empty": "No watched senders yet. Add one below.",
+      "addPlaceholder": "alice@example.com or @acme.com",
+      "addAction": "Add",
+      "removeAction": "Remove {value}",
+      "removeGlyph": "×",
+      "saveAction": "Save",
+      "savingAction": "Saving…",
+      "saved": "Saved.",
+      "saveError": "We couldn't save your changes. Please try again.",
+      "validation": {
+        "empty": "Enter a sender or domain.",
+        "duplicate": "{value} is already on the list.",
+        "tooLong": "Each entry must be 255 characters or fewer.",
+        "invalidFormat": "Use an email address or a domain like acme.com or @acme.com.",
+        "listFull": "You can watch up to 200 senders or domains."
+      }
+    },
+    "notifications": {
+      "label": "Notifications",
+      "helpText": "Pick where Shomery sends you new summaries.",
+      "saveAction": "Save",
+      "savingAction": "Saving…",
+      "saved": "Saved.",
+      "saveError": "We couldn't save your changes. Please try again.",
+      "telegramRequiresChatId": "Add a Telegram chat ID to enable this channel.",
+      "comingSoonBadge": "Coming soon",
+      "channels": {
+        "emailDigest": {
+          "label": "Email digest",
+          "helpText": "A daily roundup of new summaries to your account email."
+        },
+        "kakaoTalk": {
+          "label": "KakaoTalk"
+        },
+        "whatsApp": {
+          "label": "WhatsApp"
+        },
+        "telegram": {
+          "label": "Telegram",
+          "chatIdLabel": "Chat ID",
+          "chatIdPlaceholder": "@username or numeric ID"
+        },
+        "sms": {
+          "label": "SMS"
+        }
+      },
+      "toggleOn": "Enable {channel}",
+      "toggleOff": "Disable {channel}"
+    }
+  },
+  "onboarding": {
+    "stepLabel": "Step {current} of {total}",
+    "welcome": {
+      "headline": "Welcome to Shomery.",
+      "body": "We'll watch the senders you choose, summarize what arrives, and answer questions grounded in your own inbox.",
+      "cta": "Get started"
+    },
+    "connect": {
+      "title": "Your inbox is connected.",
+      "body": "We use the Google account you signed in with to read emails as they arrive. Nothing leaves your account uninvited.",
+      "cta": "Continue"
+    },
+    "watch": {
+      "title": "Who should we watch?",
+      "body": "Add the senders or domains worth summarizing. You can change this anytime in Settings.",
+      "minRequired": "Add at least one sender or domain to continue.",
+      "saveError": "We couldn't save your list. Please try again.",
+      "cta": "Continue"
+    },
+    "save": {
+      "title": "Where summaries live.",
+      "body": "For now we keep your summaries inside Shomery. Once Drive verification clears, we'll save them straight to your chosen folder.",
+      "completeError": "We couldn't finish setup. Please try again.",
+      "cta": "Start watching",
+      "ctaPending": "Finishing setup…"
+    }
+  }
+}

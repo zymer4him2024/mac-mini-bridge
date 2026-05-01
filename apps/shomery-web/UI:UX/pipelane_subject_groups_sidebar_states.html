@@ -1,0 +1,142 @@
+<h2 class="sr-only">Pipelane Subjects sidebar in two states: the default view with grouped and ungrouped subjects, and the combine mode where the user selects subjects to merge into a new group.</h2>
+
+<style>
+.label { font-size: 13px; color: var(--color-text-secondary); margin: 0 0 8px; font-weight: 500; }
+.frame { background: var(--color-background-secondary); border-radius: var(--border-radius-lg); padding: 12px; border: 0.5px solid var(--color-border-tertiary); }
+.canvas { background: var(--color-background-primary); border-radius: var(--border-radius-md); padding: 14px 10px; min-height: 400px; position: relative; }
+.section-head { display: flex; justify-content: space-between; padding: 0 4px 10px; border-bottom: 0.5px solid var(--color-border-tertiary); margin-bottom: 10px; }
+.section-title { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-tertiary); }
+.section-action { font-size: 11px; color: #1F4FFF; font-weight: 500; cursor: pointer; }
+.section-cancel { font-size: 11px; color: var(--color-text-secondary); cursor: pointer; }
+.row { display: flex; align-items: center; padding: 7px 8px; border-radius: 6px; cursor: pointer; font-size: 13px; justify-content: space-between; }
+.row:hover { background: var(--color-background-secondary); }
+.row.active { background: #EEF2FF; color: #1F4FFF; font-weight: 500; }
+.row.parent { font-weight: 500; color: var(--color-text-primary); }
+.row.child { padding-left: 24px; font-size: 12px; color: var(--color-text-secondary); }
+.row.has-checkbox { padding-left: 8px; }
+.count { font-size: 11px; color: var(--color-text-secondary); }
+.unread-pill { color: #1F4FFF; font-weight: 500; }
+.divider { margin: 8px 0; border-top: 0.5px solid var(--color-border-tertiary); }
+.action-block { margin-top: 14px; padding: 12px; background: #EEF2FF; border-radius: 8px; }
+.input-row { background: var(--color-background-primary); border: 0.5px solid var(--color-border-secondary); border-radius: 6px; padding: 7px 9px; font-size: 12px; margin-bottom: 8px; }
+.btn-primary-sm { background: #1F4FFF; color: #fff; border: none; padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer; width: 100%; }
+.drive-link { margin-top: 16px; padding-top: 12px; border-top: 0.5px solid var(--color-border-tertiary); font-size: 11px; color: var(--color-text-tertiary); padding-left: 4px; }
+.checkbox-row { display: flex; gap: 10px; align-items: center; flex: 1; }
+</style>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 0.5rem 0;">
+
+<!-- Default state -->
+<div>
+  <p class="label">Default — groups expand to show child subjects</p>
+  <div class="frame">
+    <div class="canvas">
+      <div class="section-head">
+        <span class="section-title">Subjects</span>
+        <span class="section-action">+ New group</span>
+      </div>
+
+      <!-- Grouped: Acme Deal -->
+      <div class="row parent">
+        <span>▼ Acme Deal</span>
+        <span class="count">12 · <span class="unread-pill">3</span></span>
+      </div>
+      <div class="row child active">
+        <span>200-seat pilot</span>
+        <span class="count">7 · <span class="unread-pill" style="color: inherit;">3</span></span>
+      </div>
+      <div class="row child">
+        <span>DPA review</span>
+        <span class="count">2</span>
+      </div>
+      <div class="row child">
+        <span>Acme contract</span>
+        <span class="count">3</span>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Ungrouped subjects -->
+      <div class="row">
+        <span>백혈병 예방법</span>
+        <span class="count">4 · <span class="unread-pill">1</span></span>
+      </div>
+      <div class="row">
+        <span>Vendor onboarding</span>
+        <span class="count">3</span>
+      </div>
+      <div class="row">
+        <span>General</span>
+        <span class="count">14</span>
+      </div>
+
+      <div class="drive-link">📁 Open in Drive ↗</div>
+    </div>
+  </div>
+</div>
+
+<!-- Combine mode -->
+<div>
+  <p class="label">Combine mode — pick subjects, name the group, done</p>
+  <div class="frame">
+    <div class="canvas">
+      <div class="section-head">
+        <span class="section-title">Select to combine</span>
+        <span class="section-cancel">Cancel</span>
+      </div>
+
+      <!-- Subjects with checkboxes -->
+      <div class="row has-checkbox">
+        <div class="checkbox-row">
+          <input type="checkbox" checked>
+          <span>200-seat pilot</span>
+        </div>
+        <span class="count">7</span>
+      </div>
+      <div class="row has-checkbox">
+        <div class="checkbox-row">
+          <input type="checkbox" checked>
+          <span>DPA review</span>
+        </div>
+        <span class="count">2</span>
+      </div>
+      <div class="row has-checkbox">
+        <div class="checkbox-row">
+          <input type="checkbox" checked>
+          <span>Acme contract</span>
+        </div>
+        <span class="count">3</span>
+      </div>
+      <div class="row has-checkbox">
+        <div class="checkbox-row">
+          <input type="checkbox">
+          <span>백혈병 예방법</span>
+        </div>
+        <span class="count">4</span>
+      </div>
+      <div class="row has-checkbox">
+        <div class="checkbox-row">
+          <input type="checkbox">
+          <span>Vendor onboarding</span>
+        </div>
+        <span class="count">3</span>
+      </div>
+      <div class="row has-checkbox">
+        <div class="checkbox-row">
+          <input type="checkbox">
+          <span>General</span>
+        </div>
+        <span class="count">14</span>
+      </div>
+
+      <!-- Action block -->
+      <div class="action-block">
+        <p style="margin: 0 0 6px; font-size: 11px; color: var(--color-text-secondary);">Name this group</p>
+        <div class="input-row">Acme Deal</div>
+        <button class="btn-primary-sm">Combine 3 subjects</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>

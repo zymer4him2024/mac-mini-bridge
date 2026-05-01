@@ -64,3 +64,64 @@ jobs:
           python-version: "3.11"
 
       - uses: pre-commit/action@v3.0.1
+
+  shomery-web:
+    name: Shomery web (smoke)
+    runs-on: ubuntu-latest
+    concurrency:
+      group: shomery-web-${{ github.ref }}
+      cancel-in-progress: true
+    env:
+      NEXT_PUBLIC_FIREBASE_API_KEY: ci-fake-api-key
+      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: demo-shomery.firebaseapp.com
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: demo-shomery
+      NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: demo-shomery.appspot.com
+      NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "000000000000"
+      NEXT_PUBLIC_FIREBASE_APP_ID: "1:000000000000:web:0000000000000000000000"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.17.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install workspace deps
+        run: pnpm install --frozen-lockfile
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Cache Firebase emulator JARs
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-${{ runner.os }}-v1
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('apps/shomery-web/package.json') }}
+
+      - name: Install Playwright browser
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter shomery-web exec playwright install --with-deps chromium
+
+      - name: Smoke gauntlet
+        run: pnpm shomery:smoke:ci
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shomery-web-playwright-report
+          path: apps/shomery-web/playwright-report
+          retention-days: 7

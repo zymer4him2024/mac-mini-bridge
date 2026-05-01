@@ -1,0 +1,107 @@
+rules_version = '2';
+
+// Shomery Firestore security rules.
+//
+// Schema: users/{uid} owns identity + onboarding state, /config/main, /folders/{slug},
+// /folders/{slug}/items/{id}, and /secrets/{id}. Python pipeline writes folder + item docs
+// via admin SDK (rules-bypassing). Web client owns user-writable fields only, scoped to an
+// explicit allowlist (identity + onboardingCompletedAt).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOwnerByPath(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    function userWritableKeys() {
+      return [
+        'email', 'displayName', 'photoURL', 'createdAt', 'lastSignedInAt',
+        'onboardingCompletedAt'
+      ];
+    }
+
+    function isValidWatchList(v) {
+      return v is list && v.size() <= 200;
+    }
+
+    function configWritableKeys() {
+      return ['priorityWatchSenders', 'digestEnabled', 'telegramEnabled', 'telegramChatId'];
+    }
+
+    function isValidNotifications(data) {
+      return (!('digestEnabled' in data.keys()) || data.digestEnabled is bool)
+        && (!('telegramEnabled' in data.keys()) || data.telegramEnabled is bool)
+        && (!('telegramChatId' in data.keys())
+            || (data.telegramChatId is string && data.telegramChatId.size() <= 64))
+        && (!('telegramEnabled' in data.keys()) || data.telegramEnabled == false
+            || ('telegramChatId' in data.keys() && data.telegramChatId.size() > 0));
+    }
+
+    match /users/{uid} {
+      allow read: if isOwnerByPath(uid);
+
+      // Create on first sign-in: only user-writable fields, exactly the user's own doc.
+      allow create: if isOwnerByPath(uid)
+        && request.resource.data.keys().hasOnly(userWritableKeys());
+
+      // Subsequent merges: only user-writable fields may change.
+      // (Python may add gmail.* etc.; the diff check ignores untouched keys.)
+      allow update: if isOwnerByPath(uid)
+        && request.resource.data.diff(resource.data)
+             .affectedKeys().hasOnly(userWritableKeys());
+
+      allow delete: if false;
+
+      match /config/{configId} {
+        allow read: if isOwnerByPath(uid);
+
+        // Settings write seam: web may create or update users/{uid}/config/main
+        // for the user-writable fields only. Python (admin SDK) bypasses these
+        // rules to set every other config field; merge writes from the web side
+        // preserve those.
+        allow create: if isOwnerByPath(uid)
+          && configId == 'main'
+          && request.resource.data.keys().hasOnly(configWritableKeys())
+          && (!('priorityWatchSenders' in request.resource.data.keys())
+              || isValidWatchList(request.resource.data.priorityWatchSenders))
+          && isValidNotifications(request.resource.data);
+
+        allow update: if isOwnerByPath(uid)
+          && configId == 'main'
+          && request.resource.data.diff(resource.data)
+               .affectedKeys().hasOnly(configWritableKeys())
+          && (!('priorityWatchSenders' in request.resource.data.keys())
+              || isValidWatchList(request.resource.data.priorityWatchSenders))
+          && isValidNotifications(request.resource.data);
+
+        allow delete: if false;
+      }
+
+      match /folders/{slug} {
+        allow read: if isOwnerByPath(uid);
+        allow write: if false; // Python pipeline writes via admin SDK.
+
+        match /items/{itemId} {
+          // Two read pathways:
+          //  - Path-scoped list/get under /users/{uid}/folders/{slug}/items
+          //    (Subject Detail). Path uid already proves ownership.
+          //  - Collection-group query on /items (Feed). The path uid binding
+          //    is unavailable, so we fall back to gating on the doc's uid.
+          allow read: if isOwnerByPath(uid)
+            || (request.auth != null
+                && request.auth.uid == resource.data.uid);
+          allow write: if false;
+        }
+      }
+
+      match /secrets/{secretId} {
+        // Refresh tokens, KMS-wrapped credentials. Never readable by clients.
+        allow read, write: if false;
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

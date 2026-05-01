@@ -1,0 +1,25 @@
+{
+  "name": "@shomery/shared-types",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Canonical TypeScript types for the Shomery data model. Mirrors what the Python pipeline writes to Firestore. Both web apps import from here so the compile breaks when the schema drifts.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "firebase": "^11.0.2"
+  },
+  "devDependencies": {
+    "firebase": "^11.0.2",
+    "typescript": "^5.6.3"
+  }
+}
