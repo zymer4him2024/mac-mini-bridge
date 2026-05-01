@@ -61,7 +61,7 @@ export function FeedList({ uid }: { uid: string }) {
     <ul className="space-y-4">
       {rows.map(({ id, item }) => (
         <li key={id}>
-          <EmailCard item={item} />
+          <EmailCard item={item} itemId={id} />
         </li>
       ))}
     </ul>

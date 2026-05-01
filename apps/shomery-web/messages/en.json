@@ -29,14 +29,23 @@
       "openLabelFor": "Open PDF — {filename}",
       "pendingLabel": "📄 {filename}",
       "linkLabel": "📄 {filename} ↗"
-    }
+    },
+    "readFullLabel": "Read full →"
   },
   "subjects": {
     "navEmpty": "No subjects yet — we'll add one when your first watched email arrives.",
     "navLoading": "Loading…",
     "detailEmpty": "No items in this subject yet.",
     "detailNotFound": "Subject not found.",
-    "itemCount": "{count, plural, one {# item} other {# items}}"
+    "itemCount": "{count, plural, one {# item} other {# items}}",
+    "backToSubject": "← Back to subject"
+  },
+  "markdown": {
+    "loading": "Loading…",
+    "empty": "This email has no markdown summary yet.",
+    "driveNotReady": "This summary lives in your Drive folder. Drive support is coming soon.",
+    "error": "We couldn't load this summary. Please try again.",
+    "notFound": "We couldn't find this email."
   },
   "settings": {
     "title": "Settings",
