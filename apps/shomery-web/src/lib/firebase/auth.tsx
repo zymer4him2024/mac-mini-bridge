@@ -73,33 +73,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (state.status !== "signed-in" || !state.user) return;
     const uid = state.user.uid;
     let unsub: (() => void) | undefined;
-    try {
-      const ref = doc(getFirebaseDb(), "users", uid);
-      unsub = onSnapshot(
-        ref,
-        (snap) => {
-          const completed = Boolean(
-            snap.exists() && snap.data()?.onboardingCompletedAt,
-          );
-          setState((prev) =>
-            prev.user?.uid === uid
-              ? { ...prev, onboardingCompleted: completed }
-              : prev,
-          );
-        },
-        (err) => {
-          console.error("Onboarding state subscription failed", err);
-          setState((prev) =>
-            prev.user?.uid === uid
-              ? { ...prev, onboardingCompleted: false }
-              : prev,
-          );
-        },
-      );
-    } catch (err) {
-      console.error("Onboarding state subscription init failed", err);
-    }
-    return () => unsub?.();
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let attempt = 0;
+
+    const attach = () => {
+      if (cancelled) return;
+      try {
+        const ref = doc(getFirebaseDb(), "users", uid);
+        unsub = onSnapshot(
+          ref,
+          (snap) => {
+            const completed = Boolean(
+              snap.exists() && snap.data()?.onboardingCompletedAt,
+            );
+            setState((prev) =>
+              prev.user?.uid === uid
+                ? { ...prev, onboardingCompleted: completed }
+                : prev,
+            );
+          },
+          (err) => {
+            // Firestore destroys the listener on error. On permission-denied
+            // during the auth-token bootstrap window, retry with backoff
+            // (the fresh ID token usually propagates within a second).
+            const code = (err as { code?: string }).code;
+            if (code === "permission-denied" && attempt < 3 && !cancelled) {
+              attempt += 1;
+              const delay = 500 * attempt;
+              retryTimer = setTimeout(attach, delay);
+              return;
+            }
+            console.error("Onboarding state subscription failed", err);
+          },
+        );
+      } catch (err) {
+        console.error("Onboarding state subscription init failed", err);
+      }
+    };
+
+    attach();
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+      unsub?.();
+    };
   }, [state.status, state.user]);
 
   const value = useMemo(() => state, [state]);
