@@ -38,7 +38,11 @@
     "detailEmpty": "No items in this subject yet.",
     "detailNotFound": "Subject not found.",
     "itemCount": "{count, plural, one {# item} other {# items}}",
-    "backToSubject": "← Back to subject"
+    "backToSubject": "← Back to subject",
+    "groupHeading": "Groups",
+    "ungroupedHeading": "Subjects",
+    "expandGroup": "Expand {name}",
+    "collapseGroup": "Collapse {name}"
   },
   "markdown": {
     "loading": "Loading…",
@@ -101,6 +105,29 @@
       },
       "toggleOn": "Enable {channel}",
       "toggleOff": "Disable {channel}"
+    },
+    "groups": {
+      "label": "Subject groups",
+      "helpText": "Bundle related subjects under a parent name. Emails stay where they are — groups are just a way to view them together.",
+      "loading": "Loading…",
+      "empty": "You don't have any groups yet. Create one to bundle related subjects.",
+      "newGroupCta": "Add group",
+      "newGroupPlaceholder": "Group name",
+      "newGroupAriaLabel": "New group name",
+      "nameLabel": "Group name",
+      "memberCount": "{count, plural, =0 {no subjects} one {# subject} other {# subjects}}",
+      "membersHelp": "Pick which subjects belong to this group. A subject can only be in one group at a time.",
+      "noSubjectsAvailable": "No subjects yet. Once you have a few, come back to bundle them.",
+      "editMembersCta": "Edit members",
+      "deleteCta": "Delete",
+      "confirmDeletePrompt": "Type {name} to delete this group. The subjects inside it stay — only the group is removed.",
+      "confirmInputLabel": "Confirmation phrase",
+      "confirmDeleteCta": "Delete group",
+      "deletingAction": "Deleting…",
+      "saveAction": "Save",
+      "savingAction": "Saving…",
+      "cancelAction": "Cancel",
+      "saveError": "We couldn't save your changes. Please try again."
     },
     "privacy": {
       "label": "Privacy & data",
