@@ -6,7 +6,6 @@ import type { Folder } from "@shomery/shared-types";
 import {
   collection,
   limit,
-  onSnapshot,
   orderBy,
   query,
 } from "firebase/firestore";
@@ -14,6 +13,7 @@ import { useTranslations } from "next-intl";
 
 import { Link, usePathname } from "@/i18n/routing";
 import { getFirebaseDb } from "@/lib/firebase/client";
+import { subscribeWithRetry } from "@/lib/firebase/subscribe";
 
 const SUBJECTS_LIMIT = 100;
 
@@ -33,12 +33,11 @@ export function SubjectsNav({ uid }: { uid: string }) {
       orderBy("updatedAt", "desc"),
       limit(SUBJECTS_LIMIT),
     );
-    const unsub = onSnapshot(q, (snap) => {
+    return subscribeWithRetry(q, (snap) => {
       setRows(
         snap.docs.map((d) => ({ id: d.id, folder: d.data() as Folder })),
       );
     });
-    return unsub;
   }, [uid]);
 
   if (rows === null) {

@@ -6,7 +6,6 @@ import type { FolderItem } from "@shomery/shared-types";
 import {
   collectionGroup,
   limit,
-  onSnapshot,
   orderBy,
   query,
   where,
@@ -14,6 +13,7 @@ import {
 import { useTranslations } from "next-intl";
 
 import { getFirebaseDb } from "@/lib/firebase/client";
+import { subscribeWithRetry } from "@/lib/firebase/subscribe";
 
 import { EmailCard } from "./email-card";
 
@@ -35,14 +35,13 @@ export function FeedList({ uid }: { uid: string }) {
       orderBy("createdAt", "desc"),
       limit(FEED_LIMIT),
     );
-    const unsub = onSnapshot(q, (snap) => {
+    return subscribeWithRetry(q, (snap) => {
       const next = snap.docs.map((d) => ({
         id: d.id,
         item: d.data() as FolderItem,
       }));
       setRows(next);
     });
-    return unsub;
   }, [uid]);
 
   if (rows === null) {
