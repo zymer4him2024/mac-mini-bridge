@@ -72,6 +72,12 @@ vi.mock("@/components/settings/notifications-editor", () => ({
   ),
 }));
 
+vi.mock("@/components/settings/privacy-data-editor", () => ({
+  PrivacyDataEditor: ({ uid }: { uid: string }) => (
+    <div data-testid="privacy-data-editor" data-uid={uid} />
+  ),
+}));
+
 import { SettingsScreen } from "@/components/settings/settings-screen";
 
 function withIntl(node: ReactNode) {

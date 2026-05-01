@@ -92,6 +92,30 @@
       },
       "toggleOn": "Ativar {channel}",
       "toggleOff": "Desativar {channel}"
+    },
+    "privacy": {
+      "label": "Privacidade e dados",
+      "helpText": "Leve seus dados embora ou apague-os do Shomery de uma vez.",
+      "export": {
+        "title": "Exportar meus dados",
+        "body": "Baixe um arquivo JSON com sua conta, configurações e todos os resumos que o Shomery guarda para você.",
+        "action": "Baixar exportação",
+        "actionPending": "Preparando exportação…",
+        "done": "Baixado.",
+        "error": "Não conseguimos gerar sua exportação. Tente novamente."
+      },
+      "delete": {
+        "title": "Excluir minha conta",
+        "body": "Remove o login, as configurações e todos os resumos. Esta ação é definitiva.",
+        "action": "Excluir minha conta",
+        "confirmPhrase": "DELETE",
+        "confirmPrompt": "Digite {phrase} para confirmar.",
+        "confirmInputLabel": "Frase de confirmação",
+        "confirmAction": "Excluir definitivamente",
+        "confirmPending": "Excluindo…",
+        "cancel": "Cancelar",
+        "error": "Não conseguimos excluir sua conta. Tente novamente."
+      }
     }
   },
   "onboarding": {
