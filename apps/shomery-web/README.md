@@ -45,8 +45,12 @@ The Firebase config values come from the new Web app registered under the existi
 apps/shomery-web/
 ├── CLAUDE.md                ← canonical project brief
 ├── README.md                ← this file
-├── IMPLEMENTATION_PLAN.md   ← phased build plan (superseded by CLAUDE.md; see banner)
-├── SCREENS_SPEC.md          ← per-screen UX detail (superseded by CLAUDE.md; see banner)
+├── docs/
+│   ├── data-model.md        ← full TypeScript types, deferred models, read/write rules
+│   ├── status.md            ← what's merged vs. in-flight per screen (changelog)
+│   └── _archive/            ← superseded reference docs (excluded via .claudeignore)
+│       ├── IMPLEMENTATION_PLAN.md
+│       └── SCREENS_SPEC.md
 ├── firebase.json            ← Hosting + emulator ports
 ├── firestore.rules          ← per-uid scoping; tested in tests/integration/
 ├── storage.rules            ← v1 markdown seam: summaries/{uid}/{slug}/{id}.md
@@ -103,4 +107,4 @@ All from the monorepo root unless noted.
 
 ## Status
 
-Foundation merged: app boots, sign-in placeholder renders under all three locales, all quality gates green, Firestore + Storage rules verified against the emulator. Functional Google OAuth + read-only Feed are the next chunk. The phased plan in `IMPLEMENTATION_PLAN.md` is superseded by CLAUDE.md and per-PR plans, but remains a useful reference for sequencing.
+Foundation merged: app boots, sign-in placeholder renders under all three locales, all quality gates green, Firestore + Storage rules verified against the emulator. Functional Google OAuth + read-only Feed are the next chunk. Per-screen merged-vs-in-flight detail lives in [`docs/status.md`](./docs/status.md). The historical phased plan and per-screen UX spec are preserved in [`docs/_archive/`](./docs/_archive/) for reference but excluded from auto-load via `.claudeignore`.

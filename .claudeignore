@@ -1,0 +1,57 @@
+# Token-saver — files Claude Code should not auto-load.
+# Re-enable individually by removing entries below if you genuinely need them in context.
+
+# --- Generated / build artifacts ---
+node_modules/
+.next/
+.turbo/
+.cache/
+coverage/
+playwright-report/
+test-results/
+dist/
+build/
+out/
+
+# --- Lock files (huge, rarely needed in context) ---
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# --- TypeScript build info ---
+*.tsbuildinfo
+
+# --- Firebase tooling caches ---
+.firebase/
+
+# --- Python virtualenvs / caches (if Python pipeline checked into repo) ---
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+
+# --- Shomery web app: superseded reference docs (still on disk for humans, not for agents) ---
+apps/shomery-web/docs/_archive/
+
+# --- Shomery web app: per-app build artifacts ---
+apps/shomery-web/.next/
+apps/shomery-web/playwright-report/
+apps/shomery-web/test-results/
+apps/shomery-web/coverage/
+
+# --- Logs (firebase-debug.log alone was 50KB in this repo) ---
+*.log
+logs/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# --- Editor / tooling internals ---
+.vscode/
+.idea/
+.DS_Store
+
+# --- Note: investigate whether these belong in context (currently ignored, uncomment to enable) ---
+# apps/shomery-web/_proposed/    # staging area — leaving visible for now
+# apps/shomery-web/UI:UX/        # design assets — leaving visible for now

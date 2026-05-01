@@ -114,6 +114,43 @@ def extract_body(payload: dict) -> str:
     return ""
 
 
+# Reply-history markers Gmail (and most clients) insert before the quoted
+# parent message. We cut at the earliest one and drop everything after, so
+# the LLM sees only the new content the sender actually wrote. Forwarded
+# messages use a different marker ("---------- Forwarded message ----------")
+# which we deliberately do NOT match — the forwarded body IS the content.
+_QUOTE_CUT_PATTERNS = [
+    # "On Wed, Apr 30, 2026 at 9:12 AM John Doe <john@x.com> wrote:"
+    re.compile(r"^On\s+.{1,400}\s+wrote:\s*$", re.MULTILINE | re.DOTALL),
+    # "2026년 4월 30일 (수) 오전 9:12, John Doe <john@x.com>님이 작성:"
+    re.compile(
+        r"^\d{4}년\s+\d{1,2}월\s+\d{1,2}일.{0,300}작성[:：]\s*$",
+        re.MULTILINE | re.DOTALL,
+    ),
+]
+
+
+def strip_quoted_reply(text: str) -> str:
+    """Drop quoted-thread history from a reply body.
+
+    Cuts at the earliest reply-header marker ("On … wrote:" / "… 작성:") and
+    removes lines starting with '>' (standard text/plain quote prefix). Leaves
+    forwarded-message markers untouched — the forwarded body is the content.
+    """
+    if not text:
+        return text
+    earliest = len(text)
+    for pat in _QUOTE_CUT_PATTERNS:
+        m = pat.search(text)
+        if m and m.start() < earliest:
+            earliest = m.start()
+    text = text[:earliest]
+    text = "\n".join(
+        line for line in text.split("\n") if not line.lstrip().startswith(">")
+    )
+    return re.sub(r"\n{3,}", "\n\n", text).strip()
+
+
 def decode_header_value(raw: str) -> str:
     """RFC 2047 decode a header value (Subject, From, etc.).
 

@@ -56,6 +56,7 @@ from mime_extract import (  # noqa: E402
     build_markdown_body,
     decode_header_value,
     extract_body,
+    strip_quoted_reply,
 )
 from lang_hint import detect_dominant_script, language_directive  # noqa: E402
 from firestore_state import (  # noqa: E402
@@ -75,6 +76,7 @@ from firestore_users import (  # noqa: E402
 )
 
 import httplib2  # noqa: E402
+import httpx  # noqa: E402
 from openai import OpenAI  # noqa: E402
 from google.oauth2.credentials import Credentials  # noqa: E402
 from google.auth.exceptions import RefreshError  # noqa: E402
@@ -92,6 +94,10 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak  
 
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.1:8b")
+# Native /api/chat endpoint, derived from the OpenAI-compat URL by dropping
+# the trailing /v1. The OpenAI SDK doesn't pass `format` through to Ollama,
+# so json-mode summarization has to use the native endpoint directly.
+OLLAMA_NATIVE_URL = OLLAMA_BASE_URL.rstrip("/").removesuffix("/v1")
 
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -164,7 +170,11 @@ def fetch_new_emails(creds: Credentials, senders: list, lookback: str) -> list:
         headers = {
             h.get("name", ""): h.get("value", "") for h in payload.get("headers") or []
         }
-        body = extract_body(payload)[:8000]
+        # Drop quoted-thread history before truncating so the 8000-char window
+        # is spent on the new content, not the parent message. Reply emails
+        # ("Re: …") otherwise summarize as empty because the LLM honors the
+        # "Skip quoted-thread history" instruction and finds nothing left.
+        body = strip_quoted_reply(extract_body(payload))[:8000]
         emails.append(
             {
                 "id": m["id"],
@@ -229,6 +239,22 @@ def _strip_fences(text: str) -> str:
 
 _VALID_URGENCY = {"low", "med", "high"}
 
+# JSON schema passed to Ollama's /api/chat `format` field. Constrained
+# decoding guarantees the model emits valid JSON matching this shape, even
+# under the long Korean medical bodies that previously produced markdown
+# prose (and thus empty Telegram alerts).
+_SUMMARY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "context": {"type": "array", "items": {"type": "string"}},
+        "key_points": {"type": "array", "items": {"type": "string"}},
+        "asks": {"type": "array", "items": {"type": "string"}},
+        "suggested_response": {"type": "string"},
+        "urgency": {"type": "string", "enum": ["low", "med", "high"]},
+    },
+    "required": ["context", "key_points", "asks", "suggested_response", "urgency"],
+}
+
 
 def _normalize_summary(data) -> dict:
     """Coerce LLM JSON output into the shape downstream code expects.
@@ -263,15 +289,31 @@ def summarize_email(client: OpenAI, email: dict, cfg: dict) -> dict:
     directive = language_directive(detect_dominant_script(email["body"]))
     if directive:
         user_msg = f"{user_msg}\n\n{directive}"
-    resp = client.chat.completions.create(
-        model=OLLAMA_MODEL,
-        messages=[
+    # Direct call to Ollama's native /api/chat with a JSON Schema constraint.
+    # The OpenAI compat layer silently drops both `response_format` and
+    # `extra_body`'s `format` key, so long Korean bodies returned markdown that
+    # failed to parse. Plain `format: "json"` was also unreliable on long
+    # prompts; the explicit schema is what actually pins the output shape.
+    # num_ctx=16384 because Ollama's default 4096 silently truncates the
+    # 8000-char body + system + template (~5400 tokens), which manifested as
+    # empty key_points/asks even when the schema was set.
+    payload = {
+        "model": OLLAMA_MODEL,
+        "messages": [
             {"role": "system", "content": system_msg},
             {"role": "user", "content": user_msg},
         ],
-        temperature=0.3,
+        "format": _SUMMARY_SCHEMA,
+        "stream": False,
+        "options": {"temperature": 0.3, "num_ctx": 16384},
+    }
+    http_resp = httpx.post(
+        f"{OLLAMA_NATIVE_URL}/api/chat",
+        json=payload,
+        timeout=90,
     )
-    text = _strip_fences(resp.choices[0].message.content or "")
+    http_resp.raise_for_status()
+    text = _strip_fences(http_resp.json().get("message", {}).get("content") or "")
     try:
         return _normalize_summary(json.loads(text))
     except json.JSONDecodeError:
