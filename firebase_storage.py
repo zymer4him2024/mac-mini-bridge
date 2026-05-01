@@ -105,6 +105,42 @@ def upload_pdf(uid: str, subject_slug: str, pdf_path: Path) -> str | None:
         return None
 
 
+def upload_markdown(
+    uid: str, subject_slug: str, email_id: str, content: str
+) -> str | None:
+    """Upload the per-email .md doc to `summaries/{uid}/{slug}/{id}.md`.
+
+    Returns the object path on success, else None. The path layout matches
+    what the web reader's `getMarkdown(item)` helper expects (one switch
+    point on the web side when the future Drive backend lands).
+    """
+    if not uid or not subject_slug or not email_id:
+        return None
+    client = _get_client()
+    if client is None:
+        return None
+
+    object_path = f"summaries/{uid}/{subject_slug}/{email_id}.md"
+    try:
+        bucket = client.bucket(_bucket_name())
+        blob = bucket.blob(object_path)
+        blob.upload_from_string(content, content_type="text/markdown")
+        return object_path
+    except (
+        gax.GoogleAPIError,
+        GoogleCloudError,
+        gauth_exc.GoogleAuthError,
+    ) as exc:
+        log.warning(
+            "markdown upload failed (uid=%s slug=%s id=%s): %s",
+            uid,
+            subject_slug,
+            email_id,
+            exc,
+        )
+        return None
+
+
 def upload_summary_csv(uid: str, subject_slug: str, csv_path: Path) -> str | None:
     """Upload the per-folder _summary.csv. Returns object path or None."""
     if not uid or not subject_slug:
@@ -137,8 +173,17 @@ def upload_summary_csv(uid: str, subject_slug: str, csv_path: Path) -> str | Non
         return None
 
 
+def _user_storage_prefixes(uid: str) -> tuple[str, ...]:
+    """All top-level Storage prefixes that hold per-user blobs.
+
+    PDFs + summary CSVs live under `users/{uid}/folders/`; markdown blobs
+    live under `summaries/{uid}/`. Both must be swept by GDPR/retention.
+    """
+    return (f"users/{uid}/folders/", f"summaries/{uid}/")
+
+
 def delete_user_blobs(uid: str) -> tuple[int, int]:
-    """Delete every blob under users/{uid}/folders/. Used by GDPR cleanup.
+    """Delete every per-user blob (folders + summaries). Used by GDPR cleanup.
 
     Returns (objects_deleted, bytes_freed).
     """
@@ -147,19 +192,19 @@ def delete_user_blobs(uid: str) -> tuple[int, int]:
     client = _get_client()
     if client is None:
         return (0, 0)
-    prefix = f"users/{uid}/folders/"
     deleted = 0
     bytes_freed = 0
     try:
         bucket = client.bucket(_bucket_name())
-        for blob in bucket.list_blobs(prefix=prefix):
-            try:
-                size = blob.size or 0
-                blob.delete()
-                deleted += 1
-                bytes_freed += size
-            except (gax.GoogleAPIError, GoogleCloudError) as exc:
-                log.warning("blob delete failed (%s): %s", blob.name, exc)
+        for prefix in _user_storage_prefixes(uid):
+            for blob in bucket.list_blobs(prefix=prefix):
+                try:
+                    size = blob.size or 0
+                    blob.delete()
+                    deleted += 1
+                    bytes_freed += size
+                except (gax.GoogleAPIError, GoogleCloudError) as exc:
+                    log.warning("blob delete failed (%s): %s", blob.name, exc)
     except (gax.GoogleAPIError, GoogleCloudError, gauth_exc.GoogleAuthError) as exc:
         log.warning("list_blobs failed for uid=%s: %s", uid, exc)
     return (deleted, bytes_freed)
@@ -169,31 +214,32 @@ def delete_old_user_blobs(uid: str, cutoff_ts: float) -> tuple[int, int]:
     """Delete blobs whose updated time is older than cutoff_ts (epoch seconds).
 
     Used by retention_sweep so cloud copies follow the same retention boundary
-    as the on-disk artifacts. Returns (objects_deleted, bytes_freed).
+    as the on-disk artifacts. Walks both `users/{uid}/folders/` and
+    `summaries/{uid}/`. Returns (objects_deleted, bytes_freed).
     """
     if not uid:
         return (0, 0)
     client = _get_client()
     if client is None:
         return (0, 0)
-    prefix = f"users/{uid}/folders/"
     deleted = 0
     bytes_freed = 0
     try:
         bucket = client.bucket(_bucket_name())
-        for blob in bucket.list_blobs(prefix=prefix):
-            try:
-                # blob.updated is timezone-aware UTC datetime
-                if blob.updated is None:
-                    continue
-                if blob.updated.timestamp() >= cutoff_ts:
-                    continue
-                size = blob.size or 0
-                blob.delete()
-                deleted += 1
-                bytes_freed += size
-            except (gax.GoogleAPIError, GoogleCloudError) as exc:
-                log.warning("blob delete failed (%s): %s", blob.name, exc)
+        for prefix in _user_storage_prefixes(uid):
+            for blob in bucket.list_blobs(prefix=prefix):
+                try:
+                    # blob.updated is timezone-aware UTC datetime
+                    if blob.updated is None:
+                        continue
+                    if blob.updated.timestamp() >= cutoff_ts:
+                        continue
+                    size = blob.size or 0
+                    blob.delete()
+                    deleted += 1
+                    bytes_freed += size
+                except (gax.GoogleAPIError, GoogleCloudError) as exc:
+                    log.warning("blob delete failed (%s): %s", blob.name, exc)
     except (gax.GoogleAPIError, GoogleCloudError, gauth_exc.GoogleAuthError) as exc:
         log.warning("list_blobs failed for uid=%s: %s", uid, exc)
     return (deleted, bytes_freed)

@@ -46,9 +46,18 @@ from firestore_activity import get_db, report_run  # noqa: E402
 from firestore_alerts import send_document  # noqa: E402
 from firestore_embeddings import upsert_embedding  # noqa: E402
 from firestore_folders import upsert_folder_item  # noqa: E402
-from firebase_storage import upload_pdf, upload_summary_csv  # noqa: E402
+from firebase_storage import (  # noqa: E402
+    upload_markdown,
+    upload_pdf,
+    upload_summary_csv,
+)
 from firestore_leads import compute_lead_id, upsert_lead  # noqa: E402
-from mime_extract import extract_body, decode_header_value, strip_quoted_reply  # noqa: E402
+from mime_extract import (  # noqa: E402
+    build_markdown_body,
+    decode_header_value,
+    extract_body,
+    strip_quoted_reply,
+)
 from lang_hint import detect_dominant_script, language_directive  # noqa: E402
 from firestore_state import (  # noqa: E402
     MAX_PROCESSED,
@@ -766,6 +775,11 @@ def process_user(
                     else None
                 )
 
+                md_body = build_markdown_body(email, summary)
+                markdown_storage_path = upload_markdown(
+                    uid, subject_slug, pdf_path.stem, md_body
+                )
+
                 upsert_folder_item(
                     get_db(),
                     uid,
@@ -786,6 +800,7 @@ def process_user(
                     has_csv=has_csv,
                     pdf_storage_path=pdf_storage_path,
                     summary_csv_storage_path=summary_csv_storage_path,
+                    markdown_storage_path=markdown_storage_path,
                 )
 
                 sender_name, sender_email = parseaddr(email.get("from", ""))
