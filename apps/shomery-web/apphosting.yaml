@@ -1,0 +1,66 @@
+# Firebase App Hosting configuration for Shomery web (Next.js 14 SSR).
+# Docs: https://firebase.google.com/docs/app-hosting/configure
+#
+# All NEXT_PUBLIC_* values are intentionally checked in — they are public
+# Firebase Web SDK config, equivalent to what `firebase apps:sdkconfig WEB`
+# would print. Server-only secrets (API keys, OAuth client secrets) must
+# never live here; use App Hosting's secret-manager integration instead.
+
+runConfig:
+  minInstances: 0
+  maxInstances: 1
+  cpu: 1
+  memoryMiB: 512
+  concurrency: 80
+
+env:
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    # Firebase Web SDK API keys are public by design — security is enforced by
+    # Firestore/Storage Security Rules + App Check, not key secrecy. Safe to
+    # commit; equivalent to what `firebase apps:sdkconfig WEB` prints.
+    value: AIzaSyAtQH5iOXEzpS-_9s-9ICgIh3zGtzkh45k # gitleaks:allow
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: simpleios01.firebaseapp.com
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: simpleios01
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: simpleios01.firebasestorage.app
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "1079977536380"
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: "1:1079977536380:web:cb8ab647a7e4f4a41b92f9"
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_USE_FIREBASE_EMULATOR
+    value: "false"
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_SENTRY_DSN
+    value: ""
+    availability:
+      - BUILD
+      - RUNTIME

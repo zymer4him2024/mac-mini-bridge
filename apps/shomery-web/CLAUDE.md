@@ -42,7 +42,7 @@ The Python pipeline is owned by the existing engineering work. Shomery (web) is 
 - **Styling:** Tailwind CSS + shadcn/ui (full component code ownership)
 - **Auth:** Firebase Auth (Google OAuth)
 - **Data:** Firestore client SDK (real-time via `onSnapshot()`)
-- **Hosting:** Firebase Hosting
+- **Hosting:** Firebase App Hosting (Cloud Run-backed SSR for Next.js); config in `apphosting.yaml`. Static `firebase.json` hosting block intentionally absent.
 - **State:** React Server Components for server-rendered pages. Firestore `onSnapshot()` is the cache for real-time per-user collections (feed, subjects, channel config). React Query is used **only** for non-Firestore HTTP calls — RAG service, Cloud Functions, OAuth callbacks. Do not wrap Firestore reads in React Query: pick one cache per data source.
 - **i18n:** `next-intl` from day one. v1 ships with three locales — **English (default), Korean (`ko`), Portuguese – Brazil (`pt-BR`)**. Locale routing under `/[locale]/...`; user preference persisted in Firestore. All copy goes through translation files; no hardcoded strings in components.
 - **Observability:** Sentry for client error tracking (DSN in a public env var, sample rate 100% in v1 since pilot volume is low). No third-party product analytics in v1; if web vitals are needed, use Next.js built-ins.
@@ -70,8 +70,8 @@ These are non-negotiable for v1. Every PR must satisfy all four.
 
 - **Project:** Use the existing `email2ppt` Firebase project (the one the Python pipeline writes to). Do **not** create a new project.
 - **App registration:** Register a new Web app under the existing project; Shomery has its own `firebaseConfig`.
-- **Hosting site:** New site `shomery-web` under that project.
-- **Domain:** `shomery.web.app` (free) at first; custom domain like `app.shomery.com` once registered.
+- **App Hosting backend:** `shomeryai` under that project (Cloud Run SSR).
+- **Domain:** App Hosting default domain at first; custom domain like `app.shomery.com` once registered.
 - **OAuth authorized domains:** Add the Hosting domain to Firebase Auth → Settings → Authorized domains.
 - **Security rules:** Existing per-`uid` Firestore rules apply. No new rule scopes for v1. Storage rules added for the v1 markdown seam (see *Critical decisions* #1).
 
