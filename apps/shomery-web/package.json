@@ -15,7 +15,7 @@
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:rules": "firebase emulators:exec --only firestore,storage --project demo-shomery 'FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 vitest run --config vitest.integration.config.ts'",
     "test:e2e": "playwright test",
-    "test:e2e:emulators": "firebase emulators:exec --only auth,firestore,storage --project demo-shomery 'NEXT_PUBLIC_USE_FIREBASE_EMULATOR=true NEXT_PUBLIC_FIREBASE_PROJECT_ID=demo-shomery playwright test'",
+    "test:e2e:emulators": "firebase emulators:exec --only auth,firestore,storage --project demo-shomery 'NEXT_PUBLIC_USE_FIREBASE_EMULATOR=true NEXT_PUBLIC_FIREBASE_PROJECT_ID=demo-shomery NEXT_PUBLIC_RAG_BASE_URL=https://rag.example.test playwright test'",
     "test:e2e:ui": "playwright test --ui",
     "test": "pnpm typecheck && pnpm lint && pnpm test:unit && pnpm test:e2e",
     "smoke": "pnpm typecheck && pnpm lint && pnpm test:unit && pnpm test:rules && pnpm test:e2e && pnpm build",

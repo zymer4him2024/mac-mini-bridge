@@ -32,11 +32,13 @@ Live for browse. Selecting a subject opens a per-folder detail page. The per-ite
 
 The watcher does not yet emit `.md` blobs in production, so this path is exercised against fixtures in tests and renders an empty state for items without a `markdownStoragePath`.
 
-**Deferred to dedicated PRs:** virtual groups, "+ New group" combine flow, "Ask this subject" Sources + scoped chat split (NotebookLM mode).
+**Deferred to dedicated PRs:** virtual groups, "+ New group" combine flow.
 
 ## Ask
 
-Not yet implemented. Per-subject, per-group, and global Ask are scheduled in dedicated PRs after the Subjects browse experience stabilizes. The contract for Ask lives in `RAG_IMPLEMENTATION_PLAN_v3.md` at the monorepo root.
+Per-subject Ask is live. The subject detail header has an "Ask this subject" CTA that opens `/[locale]/subjects/[slug]/ask`, a NotebookLM-style split with a read-only `SourcesPanel` and an `AskPanel` that posts to the Python `rag_service` at `NEXT_PUBLIC_RAG_BASE_URL` with a Firebase ID token. The service runs on the Mac Mini against Ollama in v1; provider is swappable via `LLM_PROVIDER` on the backend.
+
+**Deferred to follow-ups:** per-group Ask scoping (ships with virtual groups), global Ask, interactive Sources panel (per-item exclusion), and the cloud-LLM swap when Ollama is replaced.
 
 ## Foundation
 

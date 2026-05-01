@@ -38,7 +38,27 @@
     "detailEmpty": "이 주제에는 아직 항목이 없습니다.",
     "detailNotFound": "주제를 찾을 수 없습니다.",
     "itemCount": "{count, plural, other {항목 #개}}",
-    "backToSubject": "← 주제로 돌아가기"
+    "backToSubject": "← 주제로 돌아가기",
+    "askCta": "이 주제에 질문하기",
+    "ask": {
+      "title": "{subject}에 질문하기",
+      "subtitle": "이 주제 안의 내용만 근거로 답합니다. 근거가 없으면 답하지 않습니다.",
+      "backToSubject": "← 주제로 돌아가기",
+      "sourcesHeader": "근거",
+      "sourcesEmpty": "이 주제에는 아직 항목이 없어 답변에 사용할 근거가 없습니다.",
+      "sourcesItemCount": "{count, plural, other {근거 #개}}",
+      "sourcesNote": "이 주제의 모든 항목이 검색됩니다. 항목별 제외 기능은 다음 업데이트에서 제공됩니다.",
+      "inputPlaceholder": "이 주제에 대해 무엇이든 물어보세요…",
+      "submitAction": "질문",
+      "submitPending": "생각 중…",
+      "replyHeader": "답변",
+      "questionHeader": "질문",
+      "loadingHint": "이 주제를 검색하고 있어요…",
+      "errorNotConfigured": "질문 기능이 아직 연결되지 않았습니다. NEXT_PUBLIC_RAG_BASE_URL을 설정해 주세요.",
+      "errorNotSignedIn": "질문하려면 로그인이 필요합니다.",
+      "errorGeneric": "어시스턴트에 연결할 수 없었어요. 다시 시도해 주세요.",
+      "metaLabel": "후보 {hits}개 · 관련 {relevant}개"
+    }
   },
   "markdown": {
     "loading": "불러오는 중…",

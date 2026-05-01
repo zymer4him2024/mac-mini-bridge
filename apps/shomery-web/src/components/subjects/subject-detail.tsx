@@ -13,6 +13,7 @@ import {
 } from "firebase/firestore";
 import { useLocale, useTranslations } from "next-intl";
 
+import { Link } from "@/i18n/routing";
 import { EmailCard } from "@/components/feed/email-card";
 import { getFirebaseDb } from "@/lib/firebase/client";
 import { formatRelativeTime } from "@/lib/intl/relative-time";
@@ -87,12 +88,20 @@ export function SubjectDetail({ slug }: { slug: string }) {
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-8">
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold text-ink">{folder.subject}</h1>
-        <p className="mt-1 text-sm text-soft">
-          {t("itemCount", { count: folder.pdfCount })}
-          {relative ? ` · ${relative}` : ""}
-        </p>
+      <header className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-ink">{folder.subject}</h1>
+          <p className="mt-1 text-sm text-soft">
+            {t("itemCount", { count: folder.pdfCount })}
+            {relative ? ` · ${relative}` : ""}
+          </p>
+        </div>
+        <Link
+          href={`/subjects/${slug}/ask`}
+          className="bg-brand text-paper hover:bg-brand-hover inline-flex shrink-0 items-center rounded px-3 py-2 text-sm font-bold transition-colors"
+        >
+          {t("askCta")}
+        </Link>
       </header>
 
       {items === null ? (
