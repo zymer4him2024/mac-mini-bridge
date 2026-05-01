@@ -1,6 +1,6 @@
 {
   "projects": {
-    "default": "PLACEHOLDER_FIREBASE_PROJECT_ID"
+    "default": "simpleios01"
   },
   "targets": {},
   "etags": {}
