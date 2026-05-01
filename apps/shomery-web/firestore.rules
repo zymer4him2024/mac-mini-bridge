@@ -37,6 +37,18 @@ service cloud.firestore {
             || ('telegramChatId' in data.keys() && data.telegramChatId.size() > 0));
     }
 
+    function groupWritableKeys() {
+      return ['groupId', 'name', 'subjectSlugs', 'createdAt', 'updatedAt'];
+    }
+
+    function isValidGroupName(v) {
+      return v is string && v.size() > 0 && v.size() <= 50;
+    }
+
+    function isValidGroupMembership(v) {
+      return v is list && v.size() <= 100;
+    }
+
     match /users/{uid} {
       allow read: if isOwnerByPath(uid);
 
@@ -97,6 +109,29 @@ service cloud.firestore {
       match /secrets/{secretId} {
         // Refresh tokens, KMS-wrapped credentials. Never readable by clients.
         allow read, write: if false;
+      }
+
+      // Virtual subject groups. Pure-membership records owned by the web
+      // client; the Python pipeline does not read or write them. Deleting a
+      // group only removes the parent reference — the underlying folders and
+      // items are untouched, so unlike /folders and /config we allow delete.
+      match /groups/{groupId} {
+        allow read: if isOwnerByPath(uid);
+
+        allow create: if isOwnerByPath(uid)
+          && request.resource.data.keys().hasOnly(groupWritableKeys())
+          && isValidGroupName(request.resource.data.name)
+          && isValidGroupMembership(request.resource.data.subjectSlugs);
+
+        allow update: if isOwnerByPath(uid)
+          && request.resource.data.diff(resource.data)
+               .affectedKeys().hasOnly(groupWritableKeys())
+          && (!('name' in request.resource.data.diff(resource.data).affectedKeys())
+              || isValidGroupName(request.resource.data.name))
+          && (!('subjectSlugs' in request.resource.data.diff(resource.data).affectedKeys())
+              || isValidGroupMembership(request.resource.data.subjectSlugs));
+
+        allow delete: if isOwnerByPath(uid);
       }
     }
 
