@@ -132,7 +132,8 @@ describe("GroupsEditor", () => {
     await user.click(screen.getByLabelText("OKRs"));
     await user.click(screen.getByRole("button", { name: "Save" }));
     expect(setMembersFn).toHaveBeenCalledTimes(1);
-    const [groupId, slugs] = setMembersFn.mock.calls[0];
+    const firstCall = setMembersFn.mock.calls[0]!;
+    const [groupId, slugs] = firstCall;
     expect(groupId).toBe("g1");
     expect(new Set(slugs)).toEqual(new Set(["acme", "okrs"]));
   });
