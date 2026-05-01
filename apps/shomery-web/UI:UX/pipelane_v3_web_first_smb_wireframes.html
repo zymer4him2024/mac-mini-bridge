@@ -1,0 +1,315 @@
+<h2 class="sr-only">Five-screen wireframe for Pipelane: sign-in, one-page setup, the daily feed of processed emails, subject folder with rendered markdown summary, and the ask-your-inbox chat.</h2>
+
+<style>
+.frame { background: var(--color-background-secondary); border-radius: var(--border-radius-lg); padding: 12px; border: 0.5px solid var(--color-border-tertiary); }
+.dots { display: flex; gap: 6px; padding-bottom: 10px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--color-border-secondary); }
+.canvas { background: var(--color-background-primary); border-radius: var(--border-radius-md); }
+.label { font-size: 13px; color: var(--color-text-secondary); margin: 0 0 8px; font-weight: 500; }
+.brand-mark { width: 14px; height: 14px; background: #1F4FFF; border-radius: 3px; }
+.row { display: flex; align-items: center; }
+.btn-primary { display: inline-flex; align-items: center; gap: 8px; background: #1F4FFF; color: #FFFFFF; border: none; padding: 10px 18px; border-radius: var(--border-radius-md); font-size: 14px; font-weight: 500; cursor: pointer; }
+.btn-ghost { display: inline-flex; align-items: center; gap: 8px; background: transparent; border: 0.5px solid var(--color-border-secondary); padding: 8px 14px; border-radius: var(--border-radius-md); font-size: 13px; color: var(--color-text-primary); cursor: pointer; }
+.pill { display: inline-block; font-size: 12px; padding: 3px 10px; border-radius: 999px; font-weight: 500; }
+.pill-info { background: #EEF2FF; color: #1F4FFF; }
+.pill-muted { background: var(--color-background-secondary); color: var(--color-text-secondary); }
+.pill-warn { background: var(--color-background-warning); color: var(--color-text-warning); }
+.muted { color: var(--color-text-secondary); font-size: 13px; }
+.nav-item { font-size: 13px; color: var(--color-text-secondary); padding: 6px 10px; border-radius: 6px; cursor: pointer; }
+.nav-item.active { background: #EEF2FF; color: #1F4FFF; font-weight: 500; }
+.proj-row { padding: 8px 10px; font-size: 13px; border-radius: 6px; color: var(--color-text-secondary); display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+.proj-row.active { background: var(--color-background-secondary); color: var(--color-text-primary); font-weight: 500; }
+.cite-chip { display: inline-block; font-size: 11px; padding: 2px 7px; background: #EEF2FF; color: #1F4FFF; border-radius: 4px; margin: 0 2px; }
+.bubble-user { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 10px 14px; font-size: 13px; max-width: 72%; align-self: flex-end; }
+.bubble-bot { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); padding: 12px 14px; font-size: 13px; max-width: 88%; line-height: 1.6; }
+.email-card { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); padding: 14px 16px; }
+.email-card.active { background: #FAFBFF; border-color: #C5D2FF; }
+.priority-low { background: var(--color-border-tertiary); color: var(--color-text-secondary); }
+.priority-high { background: var(--color-background-warning); color: var(--color-text-warning); }
+.attach-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 4px 10px; border: 0.5px solid var(--color-border-tertiary); border-radius: 6px; color: var(--color-text-secondary); }
+.md h3 { font-size: 14px; margin: 16px 0 8px; font-weight: 500; }
+.md p { font-size: 13px; line-height: 1.6; margin: 6px 0; color: var(--color-text-primary); }
+.md ul { font-size: 13px; line-height: 1.6; margin: 6px 0; padding-left: 18px; }
+.md li { margin: 4px 0; }
+.md .meta { font-size: 12px; color: var(--color-text-secondary); margin: 4px 0; }
+.step-num { width: 22px; height: 22px; border-radius: 50%; background: #1F4FFF; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; }
+.step-num.done { background: #EEF2FF; color: #1F4FFF; }
+</style>
+
+<div style="display: flex; flex-direction: column; gap: 1.75rem; padding: 0.5rem 0;">
+
+<!-- 1. Sign in -->
+<div>
+  <p class="label">1. Sign in — one tap, brand color does the work</p>
+  <div class="frame">
+    <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+    <div class="canvas" style="padding: 60px 40px; text-align: center;">
+      <div class="row" style="justify-content: center; gap: 10px; margin-bottom: 22px;">
+        <div class="brand-mark" style="width: 18px; height: 18px; border-radius: 4px;"></div>
+        <span style="font-size: 18px; font-weight: 500; letter-spacing: -0.01em;">Pipelane</span>
+      </div>
+      <h2 style="margin: 0 0 8px; font-size: 22px;">Read once. Ask anything.</h2>
+      <p style="margin: 0 0 28px; font-size: 14px; color: var(--color-text-secondary);">A private notebook for everything in your inbox.</p>
+      <button class="btn-ghost" style="padding: 10px 20px; font-size: 14px;">
+        <span style="width: 16px; height: 16px; border-radius: 50%; background: #EEF2FF; display: inline-block;"></span>
+        Continue with Google
+      </button>
+      <p style="margin: 22px 0 0; font-size: 12px; color: var(--color-text-tertiary);">No card required · Setup takes 2 minutes · Your data stays in your Drive.</p>
+    </div>
+  </div>
+</div>
+
+<!-- 2. Setup -->
+<div>
+  <p class="label">2. Setup — one page, four short steps, no IT ticket</p>
+  <div class="frame">
+    <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+    <div class="canvas" style="padding: 32px 40px;">
+      <h2 style="margin: 0 0 6px; font-size: 22px;">Set up Pipelane</h2>
+      <p class="muted" style="margin: 0 0 22px; font-size: 13px;">Each subject Pipelane finds becomes a folder. We save a markdown summary per email.</p>
+
+      <!-- Step 1 -->
+      <div class="row" style="gap: 12px; margin-bottom: 14px;">
+        <span class="step-num done">✓</span>
+        <div style="flex: 1;">
+          <p style="margin: 0; font-size: 13px; font-weight: 500;">Connect Gmail</p>
+          <p class="muted" style="margin: 2px 0 0; font-size: 12px;">shawn@gil4him.com — we only read what you tell us to.</p>
+        </div>
+        <span class="pill pill-info">Connected</span>
+      </div>
+
+      <!-- Step 2 -->
+      <div class="row" style="gap: 12px; margin-bottom: 14px; align-items: flex-start;">
+        <span class="step-num">2</span>
+        <div style="flex: 1;">
+          <p style="margin: 0 0 4px; font-size: 13px; font-weight: 500;">Tell us what to watch</p>
+          <p class="muted" style="margin: 0 0 8px; font-size: 12px;">Senders or domains. Pipelane will summarize anything they send.</p>
+          <div style="border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); padding: 8px 10px; font-size: 13px;">
+            <span class="pill pill-muted" style="margin-right: 6px;">@gil4him.com ×</span>
+            <span class="pill pill-muted" style="margin-right: 6px;">maya@acme.com ×</span>
+            <span class="muted" style="font-size: 12px;">+ add another</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3 -->
+      <div class="row" style="gap: 12px; margin-bottom: 14px; align-items: flex-start;">
+        <span class="step-num">3</span>
+        <div style="flex: 1;">
+          <p style="margin: 0 0 4px; font-size: 13px; font-weight: 500;">Choose where summaries are saved</p>
+          <p class="muted" style="margin: 0 0 8px; font-size: 12px;">A folder in your own Drive. One sub-folder per subject.</p>
+          <div style="border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); padding: 8px 12px; font-size: 13px; display: flex; justify-content: space-between; align-items: center;">
+            <span>📁 My Drive / Pipelane</span>
+            <button class="btn-ghost" style="font-size: 12px; padding: 4px 10px;">Change</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 4 -->
+      <div class="row" style="gap: 12px; margin-bottom: 22px; align-items: flex-start;">
+        <span class="step-num" style="background: var(--color-background-secondary); color: var(--color-text-secondary);">4</span>
+        <div style="flex: 1;">
+          <p style="margin: 0 0 4px; font-size: 13px; font-weight: 500;">Add a phone alert <span class="muted" style="font-weight: 400;">(optional)</span></p>
+          <p class="muted" style="margin: 0; font-size: 12px;">Email digest is on by default. Add Telegram or KakaoTalk if you want push alerts.</p>
+        </div>
+      </div>
+
+      <button class="btn-primary">Start watching my inbox</button>
+    </div>
+  </div>
+</div>
+
+<!-- 3. Daily feed -->
+<div>
+  <p class="label">3. Feed — every processed email, in the same card layout as your Telegram bot</p>
+  <div class="frame">
+    <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+    <div class="canvas" style="padding: 0; overflow: hidden;">
+      <!-- top bar -->
+      <div class="row" style="justify-content: space-between; padding: 12px 18px; border-bottom: 0.5px solid var(--color-border-tertiary);">
+        <div class="row" style="gap: 10px;">
+          <div class="brand-mark"></div>
+          <span style="font-size: 14px; font-weight: 500;">Pipelane</span>
+        </div>
+        <div class="row" style="gap: 4px;">
+          <span class="nav-item active">Feed</span>
+          <span class="nav-item">Subjects</span>
+          <span class="nav-item">Ask</span>
+          <span class="nav-item">Settings</span>
+          <div style="width: 24px; height: 24px; border-radius: 50%; background: #EEF2FF; margin-left: 8px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #1F4FFF; font-weight: 500;">SL</div>
+        </div>
+      </div>
+
+      <div style="padding: 22px 24px;">
+        <h2 style="margin: 0 0 4px; font-size: 22px;">Today</h2>
+        <p class="muted" style="margin: 0 0 16px;">3 new emails processed · all saved to Drive</p>
+
+        <!-- Card 1 - matches Telegram screenshot -->
+        <div class="email-card" style="margin-bottom: 12px;">
+          <div class="row" style="justify-content: space-between; margin-bottom: 8px;">
+            <span class="attach-chip">📄 2026-04-30-090950-gil4him.md · 2 KB</span>
+            <span class="muted" style="font-size: 12px;">9:10 AM</span>
+          </div>
+          <p style="margin: 0; font-size: 14px; font-weight: 500;">📬 Shawn SH Lee</p>
+          <p style="margin: 2px 0 8px; font-size: 13px;">Re: Test: 백혈병 예방법</p>
+          <ul style="margin: 0 0 10px; padding-left: 18px; font-size: 13px; line-height: 1.55;">
+            <li>백혈병은 면역세포 성숙 이상으로 미성숙 백혈구의 이상증식으로 발생하는 암임</li>
+            <li>제공된 정보가 백혈병에 대한 전반적인 이해에 도움이 되었는지 확인하고 추가 질문이 있는지 문의</li>
+          </ul>
+          <span class="pill priority-low">▪ LOW</span>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="email-card" style="margin-bottom: 12px;">
+          <div class="row" style="justify-content: space-between; margin-bottom: 8px;">
+            <span class="attach-chip">📄 2026-04-30-083014-acme.md · 2.4 KB</span>
+            <span class="muted" style="font-size: 12px;">8:30 AM</span>
+          </div>
+          <p style="margin: 0; font-size: 14px; font-weight: 500;">📬 Maya Rodriguez</p>
+          <p style="margin: 2px 0 8px; font-size: 13px;">Re: 200-seat pilot — pricing</p>
+          <ul style="margin: 0 0 10px; padding-left: 18px; font-size: 13px; line-height: 1.55;">
+            <li>Acme is targeting a $40k pilot for 200 seats; needs Salesforce integration and a DPA before Q2 close.</li>
+            <li>Maya requested a 30-min walkthrough this week — calendar link expected by end of day.</li>
+          </ul>
+          <span class="pill priority-high">▪ HIGH</span>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="email-card">
+          <div class="row" style="justify-content: space-between; margin-bottom: 8px;">
+            <span class="attach-chip">📄 2026-04-30-072245-northwind.md · 1.8 KB</span>
+            <span class="muted" style="font-size: 12px;">7:22 AM</span>
+          </div>
+          <p style="margin: 0; font-size: 14px; font-weight: 500;">📬 Northwind Procurement</p>
+          <p style="margin: 2px 0 8px; font-size: 13px;">Vendor onboarding — security questionnaire</p>
+          <ul style="margin: 0 0 10px; padding-left: 18px; font-size: 13px; line-height: 1.55;">
+            <li>Northwind sent a 47-question security questionnaire; needs response within 5 business days.</li>
+            <li>Reference attached SOC 2 readiness doc; flag any items requiring legal review.</li>
+          </ul>
+          <span class="pill priority-low">▪ MEDIUM</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 4. Subject + markdown detail -->
+<div>
+  <p class="label">4. Subject view — sidebar of folders, rendered markdown of the selected email</p>
+  <div class="frame">
+    <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+    <div class="canvas" style="padding: 0; overflow: hidden;">
+      <!-- top bar -->
+      <div class="row" style="justify-content: space-between; padding: 12px 18px; border-bottom: 0.5px solid var(--color-border-tertiary);">
+        <div class="row" style="gap: 10px;">
+          <div class="brand-mark"></div>
+          <span style="font-size: 14px; font-weight: 500;">Pipelane</span>
+        </div>
+        <div class="row" style="gap: 4px;">
+          <span class="nav-item">Feed</span>
+          <span class="nav-item active">Subjects</span>
+          <span class="nav-item">Ask</span>
+          <span class="nav-item">Settings</span>
+          <div style="width: 24px; height: 24px; border-radius: 50%; background: #EEF2FF; margin-left: 8px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #1F4FFF; font-weight: 500;">SL</div>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 200px 1fr; min-height: 460px;">
+        <!-- subject sidebar -->
+        <div style="border-right: 0.5px solid var(--color-border-tertiary); padding: 14px 10px;">
+          <p style="margin: 0 0 8px; padding: 0 8px; font-size: 11px; color: var(--color-text-tertiary); font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em;">Subjects</p>
+          <div class="proj-row active"><span>백혈병 예방법</span><span style="font-size: 11px;">4</span></div>
+          <div class="proj-row"><span>200-seat pilot</span><span style="font-size: 11px;">7</span></div>
+          <div class="proj-row"><span>Vendor onboarding</span><span style="font-size: 11px;">3</span></div>
+          <div class="proj-row"><span>DPA review</span><span style="font-size: 11px;">2</span></div>
+          <div class="proj-row"><span>General</span><span style="font-size: 11px;">14</span></div>
+          <div style="margin-top: 12px; padding: 8px 10px; font-size: 12px; color: var(--color-text-tertiary); border-top: 0.5px solid var(--color-border-tertiary);">📁 Open in Drive ↗</div>
+        </div>
+
+        <!-- detail view -->
+        <div style="padding: 18px 22px;">
+          <div class="row" style="justify-content: space-between; margin-bottom: 14px;">
+            <div>
+              <p class="muted" style="margin: 0; font-size: 12px;">Subjects / 백혈병 예방법</p>
+              <h2 style="margin: 4px 0 0; font-size: 18px;">2026-04-30-090950-gil4him.md</h2>
+            </div>
+            <div class="row" style="gap: 6px;">
+              <button class="btn-ghost" style="font-size: 12px; padding: 6px 10px;">Download .pdf</button>
+              <button class="btn-ghost" style="font-size: 12px; padding: 6px 10px;">Open in Drive</button>
+            </div>
+          </div>
+
+          <!-- Rendered markdown -->
+          <div class="md" style="border-left: 3px solid #1F4FFF; padding-left: 14px;">
+            <h3 style="margin-top: 0; font-size: 15px;">Re: Test: 백혈병 예방법</h3>
+            <p class="meta"><strong style="font-weight: 500;">From</strong> · Shawn SH Lee &lt;shawn@gil4him.com&gt;</p>
+            <p class="meta"><strong style="font-weight: 500;">Date</strong> · 2026-04-30 09:09 KST</p>
+            <p class="meta"><strong style="font-weight: 500;">Priority</strong> · LOW</p>
+
+            <h3>Summary</h3>
+            <ul>
+              <li>백혈병은 면역세포 성숙 이상으로 미성숙 백혈구의 이상증식으로 발생하는 암임</li>
+              <li>제공된 정보가 백혈병에 대한 전반적인 이해에 도움이 되었는지 확인하고 추가 질문이 있는지 문의</li>
+            </ul>
+
+            <h3>Original</h3>
+            <p style="color: var(--color-text-secondary);">안녕하세요, 백혈병 예방법에 대한 질문에 답변드립니다. 백혈병은 골수에서 비정상적인 백혈구가 과도하게 생성되어 발생하는 혈액암으로…</p>
+            <p class="muted" style="font-size: 12px; font-style: italic;">[full body continues — 312 words]</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 5. Ask -->
+<div>
+  <p class="label">5. Ask — grounded answers from your own emails, with citations and honest refusal</p>
+  <div class="frame">
+    <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+    <div class="canvas" style="padding: 0;">
+      <!-- top bar -->
+      <div class="row" style="justify-content: space-between; padding: 12px 18px; border-bottom: 0.5px solid var(--color-border-tertiary);">
+        <div class="row" style="gap: 10px;">
+          <div class="brand-mark"></div>
+          <span style="font-size: 14px; font-weight: 500;">Pipelane</span>
+        </div>
+        <div class="row" style="gap: 4px;">
+          <span class="nav-item">Feed</span>
+          <span class="nav-item">Subjects</span>
+          <span class="nav-item active">Ask</span>
+          <span class="nav-item">Settings</span>
+          <div style="width: 24px; height: 24px; border-radius: 50%; background: #EEF2FF; margin-left: 8px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #1F4FFF; font-weight: 500;">SL</div>
+        </div>
+      </div>
+
+      <div style="padding: 20px 24px;">
+        <div class="row" style="justify-content: space-between; margin-bottom: 14px;">
+          <h2 style="margin: 0; font-size: 18px;">Ask your inbox</h2>
+          <span class="pill pill-muted">Scope: 200-seat pilot ▾</span>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 14px; margin-bottom: 16px;">
+          <div class="bubble-user">What did Acme say about budget?</div>
+          <div class="bubble-bot">
+            Acme is targeting a $40k pilot for 200 seats <span class="cite-chip">Maya · Apr 30</span>. Earlier in the thread Maya flagged budget would need procurement sign-off and a DPA before close <span class="cite-chip">Acme Legal · Apr 28</span>.
+          </div>
+
+          <div class="bubble-user">Will they decide by next Friday?</div>
+          <div class="bubble-bot" style="color: var(--color-text-secondary); font-style: italic;">
+            I don't have anything in your inbox about that.
+          </div>
+        </div>
+
+        <!-- input -->
+        <div style="border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); padding: 10px 12px; display: flex; align-items: center; gap: 10px;">
+          <span style="flex: 1; font-size: 13px; color: var(--color-text-tertiary);">Ask anything about your emails…</span>
+          <button class="btn-primary" style="padding: 6px 14px; font-size: 13px;">Ask</button>
+        </div>
+        <p class="muted" style="margin: 10px 0 0; font-size: 11px;">Answers come only from your own emails. Pipelane refuses if it isn't in there.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>

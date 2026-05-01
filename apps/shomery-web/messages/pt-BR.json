@@ -1,0 +1,124 @@
+{
+  "signIn": {
+    "headline": "Leia uma vez. Pergunte qualquer coisa.",
+    "subhead": "Um caderno privado para tudo na sua caixa de entrada.",
+    "googleButton": "Continuar com o Google",
+    "googleButtonPending": "Entrando…",
+    "errorTryAgain": "O login não foi concluído. Tente novamente.",
+    "microcopy": "Sem cartão. Configuração em 2 minutos. Seus dados ficam no seu Drive."
+  },
+  "nav": {
+    "inbox": "Caixa de entrada",
+    "subjectsHeader": "Assuntos",
+    "settings": "Configurações",
+    "signOut": "Sair"
+  },
+  "feed": {
+    "title": "Caixa de entrada",
+    "loading": "Carregando…",
+    "empty": "Estamos atentos ao seu primeiro e-mail.",
+    "unknownSender": "Remetente desconhecido",
+    "senderLine": "📬 {from}",
+    "urgency": {
+      "high": "ALTA",
+      "med": "MÉDIA",
+      "low": "BAIXA"
+    },
+    "pdf": {
+      "openLabel": "Abrir PDF",
+      "openLabelFor": "Abrir PDF — {filename}",
+      "pendingLabel": "📄 {filename}",
+      "linkLabel": "📄 {filename} ↗"
+    }
+  },
+  "subjects": {
+    "navEmpty": "Ainda não há assuntos — adicionaremos um quando o seu primeiro e-mail monitorado chegar.",
+    "navLoading": "Carregando…",
+    "detailEmpty": "Ainda não há itens neste assunto.",
+    "detailNotFound": "Assunto não encontrado.",
+    "itemCount": "{count, plural, one {# item} other {# itens}}"
+  },
+  "settings": {
+    "title": "Configurações",
+    "loading": "Carregando…",
+    "watchedSenders": {
+      "label": "Remetentes monitorados",
+      "helpText": "Resumimos e-mails desses remetentes ou domínios. Use um endereço completo (alice@example.com) ou um domínio (@acme.com).",
+      "empty": "Ainda não há remetentes monitorados. Adicione um abaixo.",
+      "addPlaceholder": "alice@example.com ou @acme.com",
+      "addAction": "Adicionar",
+      "removeAction": "Remover {value}",
+      "removeGlyph": "×",
+      "saveAction": "Salvar",
+      "savingAction": "Salvando…",
+      "saved": "Salvo.",
+      "saveError": "Não conseguimos salvar suas alterações. Tente novamente.",
+      "validation": {
+        "empty": "Informe um remetente ou domínio.",
+        "duplicate": "{value} já está na lista.",
+        "tooLong": "Cada entrada deve ter no máximo 255 caracteres.",
+        "invalidFormat": "Use um endereço de e-mail ou um domínio como acme.com ou @acme.com.",
+        "listFull": "Você pode monitorar até 200 remetentes ou domínios."
+      }
+    },
+    "notifications": {
+      "label": "Notificações",
+      "helpText": "Escolha por onde o Shomery envia os novos resumos.",
+      "saveAction": "Salvar",
+      "savingAction": "Salvando…",
+      "saved": "Salvo.",
+      "saveError": "Não conseguimos salvar suas alterações. Tente novamente.",
+      "telegramRequiresChatId": "Adicione um ID de conversa do Telegram para habilitar este canal.",
+      "comingSoonBadge": "Em breve",
+      "channels": {
+        "emailDigest": {
+          "label": "Resumo por e-mail",
+          "helpText": "Um apanhado diário dos novos resumos enviado ao seu e-mail."
+        },
+        "kakaoTalk": {
+          "label": "KakaoTalk"
+        },
+        "whatsApp": {
+          "label": "WhatsApp"
+        },
+        "telegram": {
+          "label": "Telegram",
+          "chatIdLabel": "ID da conversa",
+          "chatIdPlaceholder": "@usuario ou ID numérico"
+        },
+        "sms": {
+          "label": "SMS"
+        }
+      },
+      "toggleOn": "Ativar {channel}",
+      "toggleOff": "Desativar {channel}"
+    }
+  },
+  "onboarding": {
+    "stepLabel": "Passo {current} de {total}",
+    "welcome": {
+      "headline": "Bem-vindo ao Shomery.",
+      "body": "Monitoramos os remetentes que você escolher, resumimos o que chega e respondemos perguntas baseadas na sua própria caixa de entrada.",
+      "cta": "Começar"
+    },
+    "connect": {
+      "title": "Sua caixa de entrada está conectada.",
+      "body": "Usamos a conta Google com a qual você entrou para ler e-mails à medida que chegam. Nada sai da sua conta sem permissão.",
+      "cta": "Continuar"
+    },
+    "watch": {
+      "title": "Quem devemos monitorar?",
+      "body": "Adicione os remetentes ou domínios que valem a pena resumir. Você pode mudar isso quando quiser nas Configurações.",
+      "minRequired": "Adicione pelo menos um remetente ou domínio para continuar.",
+      "saveError": "Não conseguimos salvar sua lista. Tente novamente.",
+      "cta": "Continuar"
+    },
+    "save": {
+      "title": "Onde os resumos ficam.",
+      "body": "Por enquanto guardamos seus resumos dentro do Shomery. Assim que a verificação do Drive for concluída, vamos salvar direto na pasta que você escolher.",
+      "completeError": "Não conseguimos finalizar a configuração. Tente novamente.",
+      "cta": "Começar a monitorar",
+      "ctaPending": "Finalizando…"
+    }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "extends": [
+    "next/core-web-vitals",
+    "plugin:jsx-a11y/recommended"
+  ],
+  "plugins": ["jsx-a11y"],
+  "rules": {
+    "react/jsx-no-literals": [
+      "error",
+      {
+        "noStrings": true,
+        "ignoreProps": true,
+        "allowedStrings": []
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx", "tests/**/*"],
+      "rules": {
+        "react/jsx-no-literals": "off"
+      }
+    },
+    {
+      "files": ["src/i18n/**/*", "src/middleware.ts", "next.config.mjs", "tailwind.config.ts"],
+      "rules": {
+        "react/jsx-no-literals": "off"
+      }
+    }
+  ]
+}

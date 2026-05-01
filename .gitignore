@@ -27,3 +27,26 @@ email-digests/
 email-ppts/
 *.pdf
 *.pptx
+
+# Node / pnpm / Next.js (apps/* and shared/* workspaces)
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+.turbo/
+**/.turbo/
+.pnpm-store/
+**/dist/
+**/.vercel/
+**/coverage/
+**/playwright-report/
+**/test-results/
+.sentry-build-plugin/
+**/.sentry-build-plugin/
+
+# Firebase artifacts (keep config, ignore local emulator state)
+**/.firebase/
+**/firebase-debug.log*
+**/firestore-debug.log*
+**/ui-debug.log*
+**/storage-debug.log*

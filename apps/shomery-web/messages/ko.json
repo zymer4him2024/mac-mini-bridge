@@ -1,0 +1,124 @@
+{
+  "signIn": {
+    "headline": "한 번 읽고, 무엇이든 물어보세요.",
+    "subhead": "받은 편지함의 모든 것을 위한 개인 노트.",
+    "googleButton": "Google 계정으로 계속하기",
+    "googleButtonPending": "로그인 중…",
+    "errorTryAgain": "로그인에 실패했어요. 다시 시도해 주세요.",
+    "microcopy": "카드 등록 없음. 2분이면 설정 완료. 데이터는 본인의 Drive에 보관됩니다."
+  },
+  "nav": {
+    "inbox": "받은 편지함",
+    "subjectsHeader": "주제",
+    "settings": "설정",
+    "signOut": "로그아웃"
+  },
+  "feed": {
+    "title": "받은 편지함",
+    "loading": "불러오는 중…",
+    "empty": "첫 번째 이메일을 기다리고 있어요.",
+    "unknownSender": "알 수 없는 보낸 사람",
+    "senderLine": "📬 {from}",
+    "urgency": {
+      "high": "긴급",
+      "med": "보통",
+      "low": "낮음"
+    },
+    "pdf": {
+      "openLabel": "PDF 열기",
+      "openLabelFor": "PDF 열기 — {filename}",
+      "pendingLabel": "📄 {filename}",
+      "linkLabel": "📄 {filename} ↗"
+    }
+  },
+  "subjects": {
+    "navEmpty": "아직 주제가 없습니다 — 첫 번째 추적 이메일이 도착하면 추가할게요.",
+    "navLoading": "불러오는 중…",
+    "detailEmpty": "이 주제에는 아직 항목이 없습니다.",
+    "detailNotFound": "주제를 찾을 수 없습니다.",
+    "itemCount": "{count, plural, other {항목 #개}}"
+  },
+  "settings": {
+    "title": "설정",
+    "loading": "불러오는 중…",
+    "watchedSenders": {
+      "label": "추적할 보낸 사람",
+      "helpText": "여기에 추가한 보낸 사람 또는 도메인의 이메일을 요약합니다. 전체 이메일 주소(alice@example.com) 또는 도메인(@acme.com)을 사용하세요.",
+      "empty": "아직 추가된 항목이 없습니다. 아래에서 추가해 주세요.",
+      "addPlaceholder": "alice@example.com 또는 @acme.com",
+      "addAction": "추가",
+      "removeAction": "{value} 제거",
+      "removeGlyph": "×",
+      "saveAction": "저장",
+      "savingAction": "저장 중…",
+      "saved": "저장되었습니다.",
+      "saveError": "저장에 실패했어요. 다시 시도해 주세요.",
+      "validation": {
+        "empty": "보낸 사람 또는 도메인을 입력해 주세요.",
+        "duplicate": "{value}은(는) 이미 목록에 있습니다.",
+        "tooLong": "각 항목은 255자 이하여야 합니다.",
+        "invalidFormat": "이메일 주소 또는 acme.com / @acme.com 형식의 도메인을 입력하세요.",
+        "listFull": "최대 200개의 보낸 사람 또는 도메인까지 추적할 수 있습니다."
+      }
+    },
+    "notifications": {
+      "label": "알림",
+      "helpText": "새 요약을 어디로 받을지 선택하세요.",
+      "saveAction": "저장",
+      "savingAction": "저장 중…",
+      "saved": "저장되었습니다.",
+      "saveError": "저장에 실패했어요. 다시 시도해 주세요.",
+      "telegramRequiresChatId": "Telegram을 켜려면 채팅 ID를 입력해 주세요.",
+      "comingSoonBadge": "준비 중",
+      "channels": {
+        "emailDigest": {
+          "label": "이메일 요약",
+          "helpText": "새 요약을 가입 이메일로 매일 모아 보내드립니다."
+        },
+        "kakaoTalk": {
+          "label": "카카오톡"
+        },
+        "whatsApp": {
+          "label": "WhatsApp"
+        },
+        "telegram": {
+          "label": "Telegram",
+          "chatIdLabel": "채팅 ID",
+          "chatIdPlaceholder": "@username 또는 숫자 ID"
+        },
+        "sms": {
+          "label": "SMS"
+        }
+      },
+      "toggleOn": "{channel} 켜기",
+      "toggleOff": "{channel} 끄기"
+    }
+  },
+  "onboarding": {
+    "stepLabel": "{total}단계 중 {current}단계",
+    "welcome": {
+      "headline": "Shomery에 오신 것을 환영합니다.",
+      "body": "원하는 보낸 사람을 추적하고, 도착한 메일을 요약하고, 받은 편지함을 근거로 질문에 답해 드립니다.",
+      "cta": "시작하기"
+    },
+    "connect": {
+      "title": "받은 편지함이 연결되었습니다.",
+      "body": "로그인하신 Google 계정을 사용해 새 메일을 읽어들입니다. 허락 없이 어떤 정보도 외부로 나가지 않습니다.",
+      "cta": "계속"
+    },
+    "watch": {
+      "title": "어떤 보낸 사람을 추적할까요?",
+      "body": "요약할 가치가 있는 보낸 사람 또는 도메인을 추가해 주세요. 설정에서 언제든지 변경할 수 있습니다.",
+      "minRequired": "계속하려면 보낸 사람이나 도메인을 하나 이상 추가해 주세요.",
+      "saveError": "목록을 저장하지 못했어요. 다시 시도해 주세요.",
+      "cta": "계속"
+    },
+    "save": {
+      "title": "요약은 어디에 저장될까요.",
+      "body": "지금은 요약이 Shomery 안에 보관됩니다. Drive 인증이 완료되면 선택하신 폴더에 바로 저장해 드릴게요.",
+      "completeError": "설정을 완료하지 못했어요. 다시 시도해 주세요.",
+      "cta": "추적 시작",
+      "ctaPending": "설정 완료 중…"
+    }
+  }
+}

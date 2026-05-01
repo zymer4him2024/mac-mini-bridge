@@ -1,0 +1,181 @@
+<h2 class="sr-only">Pipelane Settings page showing Inbox connection, watched senders, Drive folder, five notification channels (Email default, KakaoTalk, WhatsApp, Telegram, SMS), and privacy actions.</h2>
+
+<style>
+.label { font-size: 13px; color: var(--color-text-secondary); margin: 0 0 8px; font-weight: 500; }
+.frame { background: var(--color-background-secondary); border-radius: var(--border-radius-lg); padding: 12px; border: 0.5px solid var(--color-border-tertiary); }
+.dots-bar { display: flex; gap: 6px; padding-bottom: 10px; }
+.dot-bar { width: 10px; height: 10px; border-radius: 50%; background: var(--color-border-secondary); }
+.canvas { background: var(--color-background-primary); border-radius: var(--border-radius-md); }
+.brand-mark { width: 14px; height: 14px; background: #1F4FFF; border-radius: 3px; }
+.row { display: flex; align-items: center; }
+.muted { color: var(--color-text-secondary); font-size: 13px; }
+.nav-item { font-size: 13px; color: var(--color-text-secondary); padding: 6px 10px; border-radius: 6px; cursor: pointer; }
+.nav-item.active { background: #EEF2FF; color: #1F4FFF; font-weight: 500; }
+.section-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--color-text-tertiary); font-weight: 500; margin: 0 0 8px; padding: 0 4px; }
+.section-card { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); margin-bottom: 18px; }
+.setting-row { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 0.5px solid var(--color-border-tertiary); }
+.setting-row:last-child { border-bottom: none; }
+.setting-title { font-size: 13px; font-weight: 500; margin: 0; }
+.setting-sub { font-size: 12px; color: var(--color-text-secondary); margin: 2px 0 0; }
+.btn-connect { background: transparent; border: 0.5px solid var(--color-border-secondary); padding: 6px 14px; border-radius: 6px; font-size: 12px; color: var(--color-text-primary); font-weight: 500; cursor: pointer; }
+.status-on { color: #1F9D55; font-size: 12px; font-weight: 500; }
+.disconnect-link { font-size: 11px; color: var(--color-text-tertiary); cursor: pointer; margin-left: 10px; }
+.pill { display: inline-block; font-size: 11px; padding: 3px 9px; border-radius: 999px; font-weight: 500; }
+.pill-muted { background: var(--color-background-secondary); color: var(--color-text-secondary); margin-right: 4px; }
+.pill-success { background: #E6F8EF; color: #1F9D55; }
+.select-look { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 0.5px solid var(--color-border-secondary); border-radius: 6px; font-size: 12px; }
+.danger-link { font-size: 12px; color: #B91C1C; font-weight: 500; cursor: pointer; }
+.channel-icon { width: 26px; height: 26px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; flex-shrink: 0; }
+</style>
+
+<div style="padding: 0.5rem 0;">
+  <p class="label">Settings — five notification channels, Email is the default</p>
+  <div class="frame">
+    <div class="dots-bar"><div class="dot-bar"></div><div class="dot-bar"></div><div class="dot-bar"></div></div>
+    <div class="canvas" style="padding: 0; overflow: hidden;">
+
+      <!-- top bar -->
+      <div class="row" style="justify-content: space-between; padding: 12px 18px; border-bottom: 0.5px solid var(--color-border-tertiary);">
+        <div class="row" style="gap: 10px;">
+          <div class="brand-mark"></div>
+          <span style="font-size: 14px; font-weight: 500;">Pipelane</span>
+        </div>
+        <div class="row" style="gap: 4px;">
+          <span class="nav-item">Feed</span>
+          <span class="nav-item">Subjects</span>
+          <span class="nav-item active">Settings</span>
+          <div style="width: 24px; height: 24px; border-radius: 50%; background: #EEF2FF; margin-left: 8px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #1F4FFF; font-weight: 500;">SL</div>
+        </div>
+      </div>
+
+      <!-- page content -->
+      <div style="padding: 22px 24px; background: var(--color-background-secondary);">
+        <h2 style="margin: 0 0 22px; font-size: 22px; color: var(--color-text-primary);">Settings</h2>
+
+        <!-- Inbox -->
+        <p class="section-label">Inbox</p>
+        <div class="section-card">
+          <div class="setting-row">
+            <div>
+              <p class="setting-title">Gmail</p>
+              <p class="setting-sub">shawn@gil4him.com</p>
+            </div>
+            <span class="status-on">● Connected <span class="disconnect-link">Disconnect</span></span>
+          </div>
+        </div>
+
+        <!-- What to watch -->
+        <p class="section-label">What to watch</p>
+        <div class="section-card">
+          <div class="setting-row" style="display: block;">
+            <p class="setting-title" style="margin-bottom: 4px;">Senders & domains</p>
+            <p class="setting-sub" style="margin-bottom: 10px;">Pipelane summarizes anything from these.</p>
+            <div>
+              <span class="pill pill-muted">@gil4him.com ×</span>
+              <span class="pill pill-muted">maya@acme.com ×</span>
+              <span class="pill pill-muted">@northwind.io ×</span>
+              <span style="font-size: 12px; color: #1F4FFF; margin-left: 4px; font-weight: 500;">+ Add</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Where to save -->
+        <p class="section-label">Where to save</p>
+        <div class="section-card">
+          <div class="setting-row">
+            <div>
+              <p class="setting-title">📁 My Drive / Pipelane</p>
+              <p class="setting-sub">One sub-folder per subject · markdown files · PDF on demand</p>
+            </div>
+            <button class="btn-connect">Change</button>
+          </div>
+        </div>
+
+        <!-- Notifications -->
+        <p class="section-label">Notifications</p>
+        <div class="section-card">
+
+          <!-- Email digest (default) -->
+          <div class="setting-row">
+            <div class="row" style="gap: 12px;">
+              <div class="channel-icon" style="background: #EEF2FF; color: #1F4FFF;">@</div>
+              <div>
+                <p class="setting-title">Email digest <span class="pill pill-success" style="margin-left: 6px;">Default</span></p>
+                <p class="setting-sub">A summary lands in your inbox.</p>
+              </div>
+            </div>
+            <span class="select-look">Each email ▾</span>
+          </div>
+
+          <!-- KakaoTalk -->
+          <div class="setting-row">
+            <div class="row" style="gap: 12px;">
+              <div class="channel-icon" style="background: #FEE500; color: #391B1B;">K</div>
+              <div>
+                <p class="setting-title">KakaoTalk</p>
+                <p class="setting-sub">Push alerts via Kakao Bot.</p>
+              </div>
+            </div>
+            <button class="btn-connect">Connect</button>
+          </div>
+
+          <!-- WhatsApp -->
+          <div class="setting-row">
+            <div class="row" style="gap: 12px;">
+              <div class="channel-icon" style="background: #25D366; color: #FFFFFF;">W</div>
+              <div>
+                <p class="setting-title">WhatsApp</p>
+                <p class="setting-sub">Push alerts via WhatsApp Business.</p>
+              </div>
+            </div>
+            <button class="btn-connect">Connect</button>
+          </div>
+
+          <!-- Telegram (demoted) -->
+          <div class="setting-row">
+            <div class="row" style="gap: 12px;">
+              <div class="channel-icon" style="background: #0088CC; color: #FFFFFF;">T</div>
+              <div>
+                <p class="setting-title">Telegram</p>
+                <p class="setting-sub">Push alerts via Pipelane Bot.</p>
+              </div>
+            </div>
+            <button class="btn-connect">Connect</button>
+          </div>
+
+          <!-- SMS -->
+          <div class="setting-row">
+            <div class="row" style="gap: 12px;">
+              <div class="channel-icon" style="background: var(--color-background-secondary); color: var(--color-text-primary);">#</div>
+              <div>
+                <p class="setting-title">SMS / Text message</p>
+                <p class="setting-sub">A short text per processed email. Standard rates apply.</p>
+              </div>
+            </div>
+            <button class="btn-connect">Connect</button>
+          </div>
+        </div>
+
+        <!-- Privacy -->
+        <p class="section-label">Privacy & data</p>
+        <div class="section-card">
+          <div class="setting-row">
+            <div>
+              <p class="setting-title">Export your data</p>
+              <p class="setting-sub">Download every saved markdown summary as a zip.</p>
+            </div>
+            <button class="btn-connect">Export</button>
+          </div>
+          <div class="setting-row">
+            <div>
+              <p class="setting-title">Delete account</p>
+              <p class="setting-sub">Remove all summaries, embeddings, and your Drive connection.</p>
+            </div>
+            <span class="danger-link">Delete</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>

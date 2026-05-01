@@ -1,0 +1,28 @@
+{
+  "name": "email2ppt-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Monorepo root for the email2ppt project. Hosts the Python pipeline at the root and JS/TS workspaces under apps/* and shared/*.",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "packageManager": "pnpm@10.17.0",
+  "scripts": {
+    "shomery:dev": "pnpm --filter shomery-web dev",
+    "shomery:build": "pnpm --filter shomery-web build",
+    "shomery:lint": "pnpm --filter shomery-web lint",
+    "shomery:typecheck": "pnpm --filter shomery-web typecheck",
+    "shomery:test": "pnpm --filter shomery-web test",
+    "shomery:smoke": "pnpm --filter shomery-web smoke",
+    "shomery:smoke:ci": "pnpm --filter shomery-web smoke:ci"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@firebase/util",
+      "esbuild",
+      "protobufjs",
+      "unrs-resolver"
+    ]
+  }
+}
