@@ -60,12 +60,7 @@ def upsert_lead(
     lead_id = _lead_id(sender_email, subject_slug)
 
     try:
-        ref = (
-            db.collection("users")
-            .document(uid)
-            .collection("leads")
-            .document(lead_id)
-        )
+        ref = db.collection("users").document(uid).collection("leads").document(lead_id)
         snap = ref.get()
         existing = snap.to_dict() if snap.exists else {}
 
@@ -91,9 +86,7 @@ def upsert_lead(
 
         ref.set(payload, merge=True)
     except gax.GoogleAPIError as exc:
-        log.warning(
-            "lead upsert failed (uid=%s lead=%s): %s", uid, lead_id, exc
-        )
+        log.warning("lead upsert failed (uid=%s lead=%s): %s", uid, lead_id, exc)
     except Exception as exc:  # noqa: BLE001 - best-effort mirror
         log.warning(
             "lead upsert unexpected error (uid=%s lead=%s): %s",

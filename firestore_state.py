@@ -52,9 +52,7 @@ def load_user_last_run_at(db, uid: str) -> datetime | None:
 
 
 def save_user_state(db, uid: str, processed_ids: list[str]) -> None:
-    db.collection("users").document(uid).collection("state").document(
-        "watcher"
-    ).set(
+    db.collection("users").document(uid).collection("state").document("watcher").set(
         {
             "processedIds": processed_ids[-MAX_PROCESSED:],
             "updatedAt": datetime.now(timezone.utc),
@@ -65,9 +63,9 @@ def save_user_state(db, uid: str, processed_ids: list[str]) -> None:
 
 def save_user_last_run_at(db, uid: str, when: datetime) -> None:
     """Mark the user as having been processed at `when` (UTC)."""
-    db.collection("users").document(uid).collection("state").document(
-        "watcher"
-    ).set({"lastRunAt": when}, merge=True)
+    db.collection("users").document(uid).collection("state").document("watcher").set(
+        {"lastRunAt": when}, merge=True
+    )
 
 
 def load_user_self_email(db, uid: str) -> str:

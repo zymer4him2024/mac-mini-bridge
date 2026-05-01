@@ -18,9 +18,7 @@ from kms_envelope import unwrap_token
 GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 TOKEN_URI = "https://oauth2.googleapis.com/token"
 
-GOOGLE_OAUTH_WEB_CLIENT_ID = os.environ.get(
-    "GOOGLE_OAUTH_WEB_CLIENT_ID", ""
-).strip()
+GOOGLE_OAUTH_WEB_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_WEB_CLIENT_ID", "").strip()
 GOOGLE_OAUTH_WEB_CLIENT_SECRET = os.environ.get(
     "GOOGLE_OAUTH_WEB_CLIENT_SECRET", ""
 ).strip()
@@ -74,9 +72,7 @@ def load_user_credentials(db, uid: str) -> Credentials:
     data = secret_doc.to_dict() or {}
     refresh_token = data.get("refreshToken")
     if not refresh_token:
-        raise RuntimeError(
-            f"users/{uid}/secrets/gmail.refreshToken is empty"
-        )
+        raise RuntimeError(f"users/{uid}/secrets/gmail.refreshToken is empty")
     refresh_token = unwrap_token(refresh_token)
     creds = Credentials(
         token=None,
@@ -98,11 +94,7 @@ def load_user_config(db, uid: str) -> dict:
     Missing or malformed fields fall back to defaults with a warning.
     """
     doc = (
-        db.collection("users")
-        .document(uid)
-        .collection("config")
-        .document("main")
-        .get()
+        db.collection("users").document(uid).collection("config").document("main").get()
     )
     data = doc.to_dict() if doc.exists else {}
     if not isinstance(data, dict):
@@ -114,9 +106,7 @@ def load_user_config(db, uid: str) -> dict:
     ):
         log.warning("uid=%s priorityWatchSenders malformed; treating as empty", uid)
         senders_raw = []
-    senders = sorted(
-        {s.strip().lower() for s in senders_raw if s.strip()}
-    )
+    senders = sorted({s.strip().lower() for s in senders_raw if s.strip()})
 
     lookback = data.get("watcherLookback", DEFAULT_LOOKBACK)
     if not isinstance(lookback, str) or not lookback.strip():

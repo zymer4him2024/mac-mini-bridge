@@ -55,13 +55,13 @@ def build_rag_text(
         parts.append(subject)
     if sender_name:
         parts.append(f"From: {sender_name}")
-    for chunk in (context or []):
+    for chunk in context or []:
         if chunk:
             parts.append(str(chunk))
-    for chunk in (key_points or []):
+    for chunk in key_points or []:
         if chunk:
             parts.append(str(chunk))
-    for chunk in (asks or []):
+    for chunk in asks or []:
         if chunk:
             parts.append(str(chunk))
     sr = (suggested_response or "").strip()

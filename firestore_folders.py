@@ -91,12 +91,16 @@ def upsert_folder_item(
     except gax.GoogleAPIError as exc:
         log.warning(
             "folder index write failed (uid=%s slug=%s): %s",
-            uid, subject_slug, exc,
+            uid,
+            subject_slug,
+            exc,
         )
     except Exception as exc:  # noqa: BLE001 - best-effort mirror
         log.warning(
             "folder index unexpected error (uid=%s slug=%s): %s",
-            uid, subject_slug, exc,
+            uid,
+            subject_slug,
+            exc,
         )
 
 

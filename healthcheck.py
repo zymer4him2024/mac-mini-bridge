@@ -73,7 +73,11 @@ def log_summary(cutoff: datetime) -> tuple[str, str | None]:
 def pdf_summary(cutoff: datetime) -> str:
     if not PDF_DIR.exists():
         return "pdfs: dir missing"
-    recent = [p for p in PDF_DIR.iterdir() if p.is_file() and datetime.fromtimestamp(p.stat().st_mtime) >= cutoff]
+    recent = [
+        p
+        for p in PDF_DIR.iterdir()
+        if p.is_file() and datetime.fromtimestamp(p.stat().st_mtime) >= cutoff
+    ]
     total = sum(1 for p in PDF_DIR.iterdir() if p.is_file())
     return f"pdfs: {len(recent)} new in {WINDOW_DAYS}d ({total} total)"
 

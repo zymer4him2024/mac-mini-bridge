@@ -95,6 +95,7 @@ logging.basicConfig(
 )
 log = logging.getLogger("watcher")
 from log_redaction import install_redaction_filter  # noqa: E402
+
 install_redaction_filter(logging.getLogger())
 
 
@@ -120,7 +121,9 @@ def _gmail_execute(request, *, label: str):
             last_exc = exc
             log.warning(
                 "Gmail %s transient %s (attempt %d/3)",
-                label, status, attempt + 1,
+                label,
+                status,
+                attempt + 1,
             )
         if attempt < len(_GMAIL_RETRY_BACKOFFS):
             time.sleep(_GMAIL_RETRY_BACKOFFS[attempt])
@@ -151,15 +154,15 @@ def fetch_new_emails(creds: Credentials, senders: list, lookback: str) -> list:
         )
         payload = msg.get("payload") or {}
         headers = {
-            h.get("name", ""): h.get("value", "")
-            for h in payload.get("headers") or []
+            h.get("name", ""): h.get("value", "") for h in payload.get("headers") or []
         }
         body = extract_body(payload)[:8000]
         emails.append(
             {
                 "id": m["id"],
                 "from": decode_header_value(headers.get("From", "")),
-                "subject": decode_header_value(headers.get("Subject", "")) or "(no subject)",
+                "subject": decode_header_value(headers.get("Subject", ""))
+                or "(no subject)",
                 "date": headers.get("Date", ""),
                 "body": body,
             }
@@ -168,7 +171,9 @@ def fetch_new_emails(creds: Credentials, senders: list, lookback: str) -> list:
 
 
 # ---------- LLM summarization ----------
-DEFAULT_PERSONA_LINE = "You are an executive assistant summarizing emails for the recipient."
+DEFAULT_PERSONA_LINE = (
+    "You are an executive assistant summarizing emails for the recipient."
+)
 
 EMAIL_USER_TEMPLATE = """Summarize the email below into structured JSON ONLY (no prose, no markdown fences).
 
@@ -263,13 +268,15 @@ def summarize_email(client: OpenAI, email: dict, cfg: dict) -> dict:
         return _normalize_summary(json.loads(text))
     except json.JSONDecodeError:
         log.warning(f"JSON parse failed for {email['subject']!r}; using fallback")
-        return _normalize_summary({
-            "context": [],
-            "key_points": [text[:400]] if text else [],
-            "asks": [],
-            "suggested_response": "",
-            "urgency": "low",
-        })
+        return _normalize_summary(
+            {
+                "context": [],
+                "key_points": [text[:400]] if text else [],
+                "asks": [],
+                "suggested_response": "",
+                "urgency": "low",
+            }
+        )
 
 
 # ---------- PDF builder ----------
@@ -296,7 +303,11 @@ def _ensure_cjk_fonts() -> None:
             # CID fonts ship single-weight; map <b>/<i> back to the same face
             # so Paragraph's <b>...</b> doesn't warn about a missing variant.
             pdfmetrics.registerFontFamily(
-                face, normal=face, bold=face, italic=face, boldItalic=face,
+                face,
+                normal=face,
+                bold=face,
+                italic=face,
+                boldItalic=face,
             )
         _CJK_FONTS_REGISTERED = True
     except Exception as exc:  # noqa: BLE001 - PDF still builds in Latin
@@ -336,22 +347,34 @@ def build_pdf(email: dict, summary: dict, out_path: Path):
     )
     styles = getSampleStyleSheet()
     h1_kwargs = {"parent": styles["Heading1"], "fontSize": 20, "spaceAfter": 6}
-    h2_kwargs = {"parent": styles["Heading2"], "fontSize": 14, "spaceAfter": 4, "spaceBefore": 10}
+    h2_kwargs = {
+        "parent": styles["Heading2"],
+        "fontSize": 14,
+        "spaceAfter": 4,
+        "spaceBefore": 10,
+    }
     if cjk_font:
         h1_kwargs["fontName"] = cjk_font
         h2_kwargs["fontName"] = cjk_font
-        body_style = ParagraphStyle("body", parent=styles["BodyText"], fontName=cjk_font)
+        body_style = ParagraphStyle(
+            "body", parent=styles["BodyText"], fontName=cjk_font
+        )
     else:
         body_style = styles["BodyText"]
     h1 = ParagraphStyle("h1", **h1_kwargs)
     h2 = ParagraphStyle("h2", **h2_kwargs)
-    meta = ParagraphStyle("meta", parent=body_style, fontSize=10, textColor=HexColor("#48484A"))
+    meta = ParagraphStyle(
+        "meta", parent=body_style, fontSize=10, textColor=HexColor("#48484A")
+    )
 
     urg = (summary.get("urgency") or "low").lower()
     if urg not in URGENCY_HEX:
         urg = "low"
     badge = ParagraphStyle(
-        "badge", parent=body_style, fontSize=11, textColor=HexColor(URGENCY_HEX[urg]),
+        "badge",
+        parent=body_style,
+        fontSize=11,
+        textColor=HexColor(URGENCY_HEX[urg]),
     )
 
     story = []
@@ -497,20 +520,29 @@ def update_subject_summary(subject_dir: Path) -> None:
     tmp_path = csv_path.with_suffix(".csv.tmp")
     with tmp_path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow([
-            "date", "from", "urgency",
-            "key_points", "asks", "suggested_response", "pdf_filename",
-        ])
+        writer.writerow(
+            [
+                "date",
+                "from",
+                "urgency",
+                "key_points",
+                "asks",
+                "suggested_response",
+                "pdf_filename",
+            ]
+        )
         for r in rows:
-            writer.writerow([
-                r.get("date", ""),
-                r.get("from", ""),
-                r.get("urgency", ""),
-                " | ".join(str(x) for x in (r.get("key_points") or [])),
-                " | ".join(str(x) for x in (r.get("asks") or [])),
-                r.get("suggested_response", ""),
-                r.get("pdf_filename", ""),
-            ])
+            writer.writerow(
+                [
+                    r.get("date", ""),
+                    r.get("from", ""),
+                    r.get("urgency", ""),
+                    " | ".join(str(x) for x in (r.get("key_points") or [])),
+                    " | ".join(str(x) for x in (r.get("asks") or [])),
+                    r.get("suggested_response", ""),
+                    r.get("pdf_filename", ""),
+                ]
+            )
     os.replace(tmp_path, csv_path)
     log.info("summary updated: %s (%d rows)", csv_path, len(rows))
 
@@ -533,7 +565,10 @@ def process_user(
         interval_minutes = cfg["intervalMinutes"]
         log.info(
             "[%s] senders=%d lookback=%s interval=%dm",
-            uid, len(senders), lookback, interval_minutes,
+            uid,
+            len(senders),
+            lookback,
+            interval_minutes,
         )
 
         # Per-user cadence gate. The LaunchAgent ticks every 2 min, but each
@@ -548,7 +583,9 @@ def process_user(
             if elapsed < required:
                 log.info(
                     "[%s] skipping (last run %.0fs ago, interval=%dm)",
-                    uid, elapsed, interval_minutes,
+                    uid,
+                    elapsed,
+                    interval_minutes,
                 )
                 return
 
@@ -586,8 +623,11 @@ def process_user(
         if not senders:
             log.info("[%s] no priorityWatchSenders configured; skipping", uid)
             report_run(
-                "watcher", "ok",
-                started_at=user_started, email_count=0, uid=uid,
+                "watcher",
+                "ok",
+                started_at=user_started,
+                email_count=0,
+                uid=uid,
             )
             return
 
@@ -612,7 +652,8 @@ def process_user(
             if self_sent:
                 log.info(
                     "[%s] suppressing %d self-sent email(s); marking seen",
-                    uid, len(self_sent),
+                    uid,
+                    len(self_sent),
                 )
                 ids = [e["id"] for e in self_sent]
                 seen_ids.extend(ids)
@@ -620,7 +661,9 @@ def process_user(
                 try:
                     save_user_state(db, uid, seen_ids)
                 except Exception:  # noqa: BLE001 - best-effort; suppression is idempotent
-                    log.exception("[%s] save_user_state after self-sent suppression failed", uid)
+                    log.exception(
+                        "[%s] save_user_state after self-sent suppression failed", uid
+                    )
             new_emails = kept
 
         new_count = len(new_emails)
@@ -628,8 +671,11 @@ def process_user(
 
         if not new_emails:
             report_run(
-                "watcher", "ok",
-                started_at=user_started, email_count=0, uid=uid,
+                "watcher",
+                "ok",
+                started_at=user_started,
+                email_count=0,
+                uid=uid,
             )
             return
 
@@ -653,7 +699,9 @@ def process_user(
                 run_at = datetime.now()
                 pdf_name = (
                     run_at.strftime("%Y-%m-%d-%H%M%S")
-                    + "-" + _sender_slug(email["from"]) + ".pdf"
+                    + "-"
+                    + _sender_slug(email["from"])
+                    + ".pdf"
                 )
                 subject_slug = _subject_slug(email["subject"])
                 subject_dir = user_pdf_dir / subject_slug
@@ -670,7 +718,9 @@ def process_user(
 
                 pdf_storage_path = upload_pdf(uid, subject_slug, pdf_path)
                 summary_csv_storage_path = (
-                    upload_summary_csv(uid, subject_slug, subject_dir / SUMMARY_FILENAME)
+                    upload_summary_csv(
+                        uid, subject_slug, subject_dir / SUMMARY_FILENAME
+                    )
                     if has_csv
                     else None
                 )
@@ -742,7 +792,9 @@ def process_user(
                     except Exception:  # noqa: BLE001 - best-effort RAG hook
                         log.warning(
                             "[%s] RAG index failed for msg=%s; alert path unaffected",
-                            uid, email["id"], exc_info=True,
+                            uid,
+                            email["id"],
+                            exc_info=True,
                         )
 
                 msg = _compose_telegram_msg(email, summary)
@@ -758,17 +810,17 @@ def process_user(
                     except Exception:  # noqa: BLE001 - best-effort persist
                         log.exception(
                             "[%s] state save failed for %s",
-                            uid, email["id"],
+                            uid,
+                            email["id"],
                         )
                 else:
                     log.warning(
                         "[%s] alert not delivered for %s; will retry next tick",
-                        uid, email["id"],
+                        uid,
+                        email["id"],
                     )
             except Exception as e:  # noqa: BLE001 - per-email isolation
-                log.exception(
-                    "[%s] failed processing %s: %s", uid, email["id"], e
-                )
+                log.exception("[%s] failed processing %s: %s", uid, email["id"], e)
 
         save_user_state(db, uid, seen_ids)
         log.info("[%s] state saved (%d ids)", uid, len(seen_ids[-MAX_PROCESSED:]))
@@ -833,7 +885,9 @@ def main():
     # 90s cap per Ollama call — generous for a laptop, short enough that a
     # stalled summary doesn't pile up across overlapping ticks.
     llm_client = OpenAI(
-        base_url=OLLAMA_BASE_URL, api_key="ollama-local", timeout=90,
+        base_url=OLLAMA_BASE_URL,
+        api_key="ollama-local",
+        timeout=90,
     )
 
     for uid in uids:

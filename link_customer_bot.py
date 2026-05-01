@@ -115,7 +115,9 @@ def main(argv: list[str]) -> int:
 
     verify = user_ref.get().to_dict() or {}
     cb = verify.get("customerBot") or {}
-    print(f"verify: username=@{cb.get('username')} chatId={cb.get('chatId')} type={cb.get('chatType')}")
+    print(
+        f"verify: username=@{cb.get('username')} chatId={cb.get('chatId')} type={cb.get('chatType')}"
+    )
     return 0
 
 

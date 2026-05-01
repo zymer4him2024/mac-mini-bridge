@@ -62,11 +62,18 @@ def main() -> int:
     chosen = None
     for q in queries:
         print(f"query: {q}")
-        result = service.users().messages().list(userId="me", q=q, maxResults=30).execute()
+        result = (
+            service.users().messages().list(userId="me", q=q, maxResults=30).execute()
+        )
         msgs = result.get("messages", [])
         print(f"  candidates: {len(msgs)}")
         for m in msgs:
-            msg = service.users().messages().get(userId="me", id=m["id"], format="full").execute()
+            msg = (
+                service.users()
+                .messages()
+                .get(userId="me", id=m["id"], format="full")
+                .execute()
+            )
             payload = msg.get("payload") or {}
             headers = {h["name"]: h["value"] for h in payload.get("headers") or []}
             body = extract_body(payload)
@@ -114,7 +121,9 @@ def main() -> int:
     print(f"OLLAMA_MODEL:    {os.environ.get('OLLAMA_MODEL')}")
     print()
 
-    client = OpenAI(base_url=watcher.OLLAMA_BASE_URL, api_key="ollama-local", timeout=120)
+    client = OpenAI(
+        base_url=watcher.OLLAMA_BASE_URL, api_key="ollama-local", timeout=120
+    )
     summary = watcher.summarize_email(client, email, cfg)
     print("Summary JSON:")
     print(json.dumps(summary, ensure_ascii=False, indent=2))

@@ -53,7 +53,10 @@ def _get_client() -> gcs.Client | None:
     global _client
     if _client is None:
         if not _SA_PATH.exists():
-            log.warning("firebase-service-account.json missing at %s; uploads disabled", _SA_PATH)
+            log.warning(
+                "firebase-service-account.json missing at %s; uploads disabled",
+                _SA_PATH,
+            )
             return None
         try:
             creds = service_account.Credentials.from_service_account_file(str(_SA_PATH))
@@ -86,10 +89,18 @@ def upload_pdf(uid: str, subject_slug: str, pdf_path: Path) -> str | None:
         blob = bucket.blob(object_path)
         blob.upload_from_filename(str(pdf_path), content_type="application/pdf")
         return object_path
-    except (gax.GoogleAPIError, GoogleCloudError, gauth_exc.GoogleAuthError, OSError) as exc:
+    except (
+        gax.GoogleAPIError,
+        GoogleCloudError,
+        gauth_exc.GoogleAuthError,
+        OSError,
+    ) as exc:
         log.warning(
             "pdf upload failed (uid=%s slug=%s file=%s): %s",
-            uid, subject_slug, pdf_path.name, exc,
+            uid,
+            subject_slug,
+            pdf_path.name,
+            exc,
         )
         return None
 
@@ -111,9 +122,17 @@ def upload_summary_csv(uid: str, subject_slug: str, csv_path: Path) -> str | Non
         blob = bucket.blob(object_path)
         blob.upload_from_filename(str(csv_path), content_type="text/csv")
         return object_path
-    except (gax.GoogleAPIError, GoogleCloudError, gauth_exc.GoogleAuthError, OSError) as exc:
+    except (
+        gax.GoogleAPIError,
+        GoogleCloudError,
+        gauth_exc.GoogleAuthError,
+        OSError,
+    ) as exc:
         log.warning(
-            "csv upload failed (uid=%s slug=%s): %s", uid, subject_slug, exc,
+            "csv upload failed (uid=%s slug=%s): %s",
+            uid,
+            subject_slug,
+            exc,
         )
         return None
 

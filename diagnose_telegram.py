@@ -49,7 +49,9 @@ def main() -> int:
         print(f"getMe failed: {me}")
         return 1
     bot = me["result"]
-    print(f"id={bot.get('id')} username=@{bot.get('username')} name={bot.get('first_name')}")
+    print(
+        f"id={bot.get('id')} username=@{bot.get('username')} name={bot.get('first_name')}"
+    )
 
     section("Recent chats seen by bot (getUpdates)")
     upd = get_updates()
@@ -66,11 +68,21 @@ def main() -> int:
         seen[cid] = chat
     if not seen:
         print("(no recent updates — Telegram only retains updates for ~24h)")
-        print("If gil4him already pressed Detect, his message was consumed and dropped.")
-        print("To re-test: open @%s in Telegram, send a fresh message, then re-run." % bot.get('username'))
+        print(
+            "If gil4him already pressed Detect, his message was consumed and dropped."
+        )
+        print(
+            "To re-test: open @%s in Telegram, send a fresh message, then re-run."
+            % bot.get("username")
+        )
     else:
         for cid, chat in seen.items():
-            label = chat.get("username") or chat.get("first_name") or chat.get("title") or "?"
+            label = (
+                chat.get("username")
+                or chat.get("first_name")
+                or chat.get("title")
+                or "?"
+            )
             print(f"chatId={cid} type={chat.get('type')} label={label}")
 
     section("Firestore users")
@@ -91,7 +103,10 @@ def main() -> int:
         print("Pick a chatId from the seen list above that belongs to gil4him,")
         print("then run write_customerbot.py <uid> <chatId> to link it.")
     else:
-        print("Have gil4him send a fresh message to @%s in Telegram, then re-run." % bot.get('username'))
+        print(
+            "Have gil4him send a fresh message to @%s in Telegram, then re-run."
+            % bot.get("username")
+        )
 
     return 0
 

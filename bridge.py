@@ -45,9 +45,6 @@ from schemas import (
     parse_link_input,
     parse_ppt_query,
 )
-
-GENERIC_ERROR_REPLY = "Something went wrong on our end. We've logged it."
-
 from firestore_telegram import (
     LinkLookupStatus,
     consume_link_token,
@@ -59,6 +56,8 @@ from firestore_folders import fetch_folder, list_folders
 from firestore_sessions import clear_session, get_session, set_folder_scope
 from google.api_core import exceptions as gax
 from rag_core import answer_question
+
+GENERIC_ERROR_REPLY = "Something went wrong on our end. We've logged it."
 
 # ---------- Config ----------
 BASE_DIR = Path(__file__).parent.resolve()
@@ -86,6 +85,7 @@ log = logging.getLogger("bridge")
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 from log_redaction import install_redaction_filter  # noqa: E402
+
 install_redaction_filter(logging.getLogger())
 
 # OpenAI client pointed at local Ollama
@@ -109,7 +109,9 @@ def _persist_token(creds: Credentials) -> None:
 def get_gmail_service():
     creds = None
     if GMAIL_TOKEN_PATH.exists():
-        creds = Credentials.from_authorized_user_file(str(GMAIL_TOKEN_PATH), GMAIL_SCOPES)
+        creds = Credentials.from_authorized_user_file(
+            str(GMAIL_TOKEN_PATH), GMAIL_SCOPES
+        )
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
@@ -371,7 +373,9 @@ def ask_llm(user_message: str) -> str:
 
 # ---------- Telegram handlers ----------
 def authorized(update: Update) -> bool:
-    return bool(update.effective_chat) and update.effective_chat.id == AUTHORIZED_CHAT_ID
+    return (
+        bool(update.effective_chat) and update.effective_chat.id == AUTHORIZED_CHAT_ID
+    )
 
 
 async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -404,7 +408,13 @@ async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             return
 
         fresh_button = InlineKeyboardMarkup(
-            [[InlineKeyboardButton("Get a fresh link", url="https://email2ppt.web.app")]]
+            [
+                [
+                    InlineKeyboardButton(
+                        "Get a fresh link", url="https://email2ppt.web.app"
+                    )
+                ]
+            ]
         )
 
         if status is LinkLookupStatus.OK:
@@ -474,8 +484,7 @@ async def whoami(update: Update, _: ContextTypes.DEFAULT_TYPE):
         return
 
     name = (
-        f"@{link['username']}" if link["username"]
-        else (link["firstName"] or "linked")
+        f"@{link['username']}" if link["username"] else (link["firstName"] or "linked")
     )
     linked_at = link["linkedAt"]
     since = linked_at.strftime("%Y-%m-%d") if linked_at else "earlier"
@@ -503,10 +512,12 @@ async def unlink(update: Update, _: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("You're not connected to email2ppt.")
         return
     keyboard = InlineKeyboardMarkup(
-        [[
-            InlineKeyboardButton("Yes, disconnect", callback_data="unlink:confirm"),
-            InlineKeyboardButton("Cancel", callback_data="unlink:cancel"),
-        ]]
+        [
+            [
+                InlineKeyboardButton("Yes, disconnect", callback_data="unlink:confirm"),
+                InlineKeyboardButton("Cancel", callback_data="unlink:cancel"),
+            ]
+        ]
     )
     await update.message.reply_text(
         "Disconnect this Telegram from email2ppt? Alerts will stop arriving here.",
@@ -621,7 +632,9 @@ async def trigger_ppt(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     try:
         query = parse_ppt_query(raw)
     except InvalidPPTQuery as exc:
-        log.info("rejected /ppt query from chat_id=%s: %s", update.effective_chat.id, exc)
+        log.info(
+            "rejected /ppt query from chat_id=%s: %s", update.effective_chat.id, exc
+        )
         await update.message.reply_text(
             "That query isn't allowed. Use Gmail operators like "
             "`from:`, `subject:`, `is:`, `newer_than:`."
@@ -700,7 +713,7 @@ async def folder_picker_callback(update: Update, _: ContextTypes.DEFAULT_TYPE):
     data = query.data or ""
     if not data.startswith("folder:"):
         return
-    slug = data[len("folder:"):]
+    slug = data[len("folder:") :]
     chat_id = query.message.chat.id
     try:
         link = find_telegram_link(chat_id)
@@ -785,16 +798,24 @@ async def _answer_in_scope(update: Update, question: str) -> None:
 
     await update.message.chat.send_action("typing")
     answer, meta = answer_question(
-        db, uid, slug, subject, question,
+        db,
+        uid,
+        slug,
+        subject,
+        question,
         style_hint="short — Telegram messages, not essays",
         error_reply=GENERIC_ERROR_REPLY,
     )
     log.info(
         "ask uid=%s slug=%s hits=%d relevant=%d top_dist=%.3f",
-        uid, slug, meta["hits"], meta["relevant"], meta["top_dist"],
+        uid,
+        slug,
+        meta["hits"],
+        meta["relevant"],
+        meta["top_dist"],
     )
     for i in range(0, len(answer), 4000):
-        await update.message.reply_text(answer[i:i + 4000])
+        await update.message.reply_text(answer[i : i + 4000])
 
 
 async def handle_message(update: Update, _: ContextTypes.DEFAULT_TYPE):
@@ -845,7 +866,9 @@ async def handle_message(update: Update, _: ContextTypes.DEFAULT_TYPE):
 
 
 def main():
-    log.info(f"Starting Telegram bridge with model={OLLAMA_MODEL} via {OLLAMA_BASE_URL}")
+    log.info(
+        f"Starting Telegram bridge with model={OLLAMA_MODEL} via {OLLAMA_BASE_URL}"
+    )
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("whoami", whoami))

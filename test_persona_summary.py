@@ -49,12 +49,16 @@ def test_unit_mime_extract() -> None:
         "parts": [
             {
                 "mimeType": "text/plain",
-                "headers": [{"name": "Content-Type", "value": "text/plain; charset=utf-8"}],
+                "headers": [
+                    {"name": "Content-Type", "value": "text/plain; charset=utf-8"}
+                ],
                 "body": {"data": _b64url("Hello world".encode("utf-8"))},
             },
             {
                 "mimeType": "text/html",
-                "headers": [{"name": "Content-Type", "value": "text/html; charset=utf-8"}],
+                "headers": [
+                    {"name": "Content-Type", "value": "text/html; charset=utf-8"}
+                ],
                 "body": {"data": _b64url(b"<p>Hello <b>world</b></p>")},
             },
         ],
@@ -77,7 +81,9 @@ def test_unit_mime_extract() -> None:
     # 3. text/plain in CP949 (declared as ks_c_5601-1987) → returns Korean unicode
     cp949_payload = {
         "mimeType": "text/plain",
-        "headers": [{"name": "Content-Type", "value": 'text/plain; charset="ks_c_5601-1987"'}],
+        "headers": [
+            {"name": "Content-Type", "value": 'text/plain; charset="ks_c_5601-1987"'}
+        ],
         "body": {"data": _b64url(korean.encode("cp949"))},
     }
     out = extract_body(cp949_payload)
@@ -104,19 +110,25 @@ def test_unit_mime_extract() -> None:
     print("html-only strip + entity decode: PASS")
 
     # 5. RFC 2047 header decode: EUC-KR encoded subject
-    encoded_subject = "=?euc-kr?B?" + base64.b64encode(
-        "다음 주 미팅".encode("euc_kr")
-    ).decode("ascii") + "?="
+    encoded_subject = (
+        "=?euc-kr?B?"
+        + base64.b64encode("다음 주 미팅".encode("euc_kr")).decode("ascii")
+        + "?="
+    )
     decoded = decode_header_value(encoded_subject)
     assert decoded == "다음 주 미팅", f"rfc2047 euc-kr: got {decoded!r}"
     print("rfc2047 euc-kr subject: PASS")
 
     # 6. RFC 2047 header decode: UTF-8 encoded From with display name
-    encoded_from = "=?UTF-8?B?" + base64.b64encode(
-        "김지훈".encode("utf-8")
-    ).decode("ascii") + "?= <jihoon@example.com>"
+    encoded_from = (
+        "=?UTF-8?B?"
+        + base64.b64encode("김지훈".encode("utf-8")).decode("ascii")
+        + "?= <jihoon@example.com>"
+    )
     decoded = decode_header_value(encoded_from)
-    assert "김지훈" in decoded and "jihoon@example.com" in decoded, f"rfc2047 utf-8: got {decoded!r}"
+    assert (
+        "김지훈" in decoded and "jihoon@example.com" in decoded
+    ), f"rfc2047 utf-8: got {decoded!r}"
     print("rfc2047 utf-8 from: PASS")
 
     # 7. Plain ASCII subject (no encoding) → passthrough

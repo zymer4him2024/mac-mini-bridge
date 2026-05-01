@@ -57,7 +57,8 @@ def test_lead_id_determinism() -> None:
     )
     _check(
         "different subject -> different lead_id",
-        _lead_id("alice@acme.com", "subject-a") != _lead_id("alice@acme.com", "subject-b"),
+        _lead_id("alice@acme.com", "subject-a")
+        != _lead_id("alice@acme.com", "subject-b"),
     )
     _check(
         "different sender -> different lead_id",
@@ -71,10 +72,7 @@ def _make_db(existing: dict | None) -> tuple[MagicMock, MagicMock]:
     snap = MagicMock()
     snap.exists = existing is not None
     snap.to_dict.return_value = existing or {}
-    ref = (
-        db.collection.return_value.document.return_value
-        .collection.return_value.document.return_value
-    )
+    ref = db.collection.return_value.document.return_value.collection.return_value.document.return_value
     ref.get.return_value = snap
     return db, ref
 
@@ -84,10 +82,14 @@ def test_upsert_lead_first_write() -> None:
 
     db, ref = _make_db(existing=None)
     upsert_lead(
-        db, "uid-1",
-        sender_email="alice@acme.com", sender_name="Alice Chen",
-        subject="Hello", subject_slug="hello",
-        urgency="med", pdf_filename="x.pdf",
+        db,
+        "uid-1",
+        sender_email="alice@acme.com",
+        sender_name="Alice Chen",
+        subject="Hello",
+        subject_slug="hello",
+        urgency="med",
+        pdf_filename="x.pdf",
         suggested_response="Reply Friday",
     )
 
@@ -100,30 +102,41 @@ def test_upsert_lead_first_write() -> None:
     _check("first write sets firstSeenAt", "firstSeenAt" in payload)
     _check("first write sets createdAt", "createdAt" in payload)
     _check("first write interactionCount=1", payload.get("interactionCount") == 1)
-    _check("first write normalizes senderEmail to lowercase", payload.get("senderEmail") == "alice@acme.com")
+    _check(
+        "first write normalizes senderEmail to lowercase",
+        payload.get("senderEmail") == "alice@acme.com",
+    )
 
 
 def test_upsert_lead_preserves_user_status() -> None:
     """Highest-impact regression: subsequent writes must not clobber status."""
     from firestore_leads import upsert_lead
 
-    db, ref = _make_db(existing={
-        "status": "qualified",     # user edited
-        "interactionCount": 3,
-        "firstSeenAt": "<ts>",
-        "createdAt": "<ts>",
-    })
+    db, ref = _make_db(
+        existing={
+            "status": "qualified",  # user edited
+            "interactionCount": 3,
+            "firstSeenAt": "<ts>",
+            "createdAt": "<ts>",
+        }
+    )
     upsert_lead(
-        db, "uid-1",
-        sender_email="alice@acme.com", sender_name="Alice Chen",
-        subject="Hello", subject_slug="hello",
-        urgency="high", pdf_filename="y.pdf",
+        db,
+        "uid-1",
+        sender_email="alice@acme.com",
+        sender_name="Alice Chen",
+        subject="Hello",
+        subject_slug="hello",
+        urgency="high",
+        pdf_filename="y.pdf",
         suggested_response="urgent reply",
     )
 
     payload = ref.set.call_args.args[0]
     _check("subsequent write does NOT include 'status'", "status" not in payload)
-    _check("subsequent write does NOT include 'firstSeenAt'", "firstSeenAt" not in payload)
+    _check(
+        "subsequent write does NOT include 'firstSeenAt'", "firstSeenAt" not in payload
+    )
     _check("subsequent write does NOT include 'createdAt'", "createdAt" not in payload)
     _check("interactionCount increments to 4", payload.get("interactionCount") == 4)
     _check("urgency reflects latest email", payload.get("urgency") == "high")
@@ -137,10 +150,15 @@ def test_upsert_lead_never_raises() -> None:
     raised: Exception | None = None
     try:
         upsert_lead(
-            db, "uid",
-            sender_email="x@y.com", sender_name="x",
-            subject="s", subject_slug="s",
-            urgency="low", pdf_filename="p", suggested_response="",
+            db,
+            "uid",
+            sender_email="x@y.com",
+            sender_name="x",
+            subject="s",
+            subject_slug="s",
+            urgency="low",
+            pdf_filename="p",
+            suggested_response="",
         )
     except Exception as exc:  # noqa: BLE001 - intentional
         raised = exc
@@ -152,19 +170,29 @@ def test_upsert_lead_skips_empty_inputs() -> None:
 
     db1 = MagicMock()
     upsert_lead(
-        db1, "",
-        sender_email="x@y.com", sender_name="x",
-        subject="s", subject_slug="s",
-        urgency="low", pdf_filename="p", suggested_response="",
+        db1,
+        "",
+        sender_email="x@y.com",
+        sender_name="x",
+        subject="s",
+        subject_slug="s",
+        urgency="low",
+        pdf_filename="p",
+        suggested_response="",
     )
     _check("upsert_lead early-returns on empty uid", not db1.collection.called)
 
     db2 = MagicMock()
     upsert_lead(
-        db2, "uid",
-        sender_email="", sender_name="",
-        subject="s", subject_slug="s",
-        urgency="low", pdf_filename="p", suggested_response="",
+        db2,
+        "uid",
+        sender_email="",
+        sender_name="",
+        subject="s",
+        subject_slug="s",
+        urgency="low",
+        pdf_filename="p",
+        suggested_response="",
     )
     _check("upsert_lead early-returns on empty sender_email", not db2.collection.called)
 
@@ -189,11 +217,13 @@ def test_parseaddr_handles_real_headers() -> None:
 # ---------------------------------------------------------------------------
 
 SECRET_PATTERNS = [
-    (r'(?:api[_-]?key|secret|token|password)\s*=\s*["\'][A-Za-z0-9_\-]{20,}["\']',
-     "credential-shaped assignment"),
-    (r'AIza[0-9A-Za-z_\-]{35}', "Google API key literal"),
-    (r'sk-[A-Za-z0-9]{20,}', "OpenAI key literal"),
-    (r'AKIA[0-9A-Z]{16}', "AWS access key ID literal"),
+    (
+        r'(?:api[_-]?key|secret|token|password)\s*=\s*["\'][A-Za-z0-9_\-]{20,}["\']',
+        "credential-shaped assignment",
+    ),
+    (r"AIza[0-9A-Za-z_\-]{35}", "Google API key literal"),
+    (r"sk-[A-Za-z0-9]{20,}", "OpenAI key literal"),
+    (r"AKIA[0-9A-Z]{16}", "AWS access key ID literal"),
 ]
 
 
@@ -205,7 +235,7 @@ def test_no_hardcoded_secrets() -> None:
             for m in re.finditer(pat, text):
                 line_start = text.rfind("\n", 0, m.start()) + 1
                 line_end = text.find("\n", m.end())
-                line = text[line_start:line_end if line_end != -1 else len(text)]
+                line = text[line_start : line_end if line_end != -1 else len(text)]
                 if line.lstrip().startswith("#"):
                     continue
                 ln = text.count("\n", 0, m.start()) + 1
@@ -241,7 +271,7 @@ def test_no_eval_or_shell_injection() -> None:
                 # skip comments and the test script itself describing the patterns
                 line_start = text.rfind("\n", 0, m.start()) + 1
                 line_end = text.find("\n", m.end())
-                line = text[line_start:line_end if line_end != -1 else len(text)]
+                line = text[line_start : line_end if line_end != -1 else len(text)]
                 if line.lstrip().startswith("#"):
                     continue
                 if f.name == "test_pipeline.py":
@@ -287,8 +317,9 @@ def test_secrets_loaded_from_env() -> None:
         text = f.read_text(encoding="utf-8", errors="replace")
         # Look for any *_API_KEY or *_TOKEN assignment that's not from os.getenv
         for m in re.finditer(
-            r'^([A-Z_]+(?:API_KEY|TOKEN|SECRET|PASSWORD))\s*=\s*(.+)$',
-            text, re.MULTILINE,
+            r"^([A-Z_]+(?:API_KEY|TOKEN|SECRET|PASSWORD))\s*=\s*(.+)$",
+            text,
+            re.MULTILINE,
         ):
             value = m.group(2).strip()
             if "os.getenv" in value or "os.environ" in value:
@@ -296,7 +327,11 @@ def test_secrets_loaded_from_env() -> None:
             if value.startswith(('"', "'")) and len(value) > 8:
                 ln = text.count("\n", 0, m.start()) + 1
                 suspicious.append(f"{f.name}:{ln} {m.group(1)}")
-    _check("secrets read from env (not string literals)", not suspicious, "; ".join(suspicious))
+    _check(
+        "secrets read from env (not string literals)",
+        not suspicious,
+        "; ".join(suspicious),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -342,8 +377,10 @@ def _all_calls_inside_try(source: str, name: str) -> tuple[bool, int]:
         def visit_Call(self, node: ast.Call) -> None:
             func = node.func
             fname = (
-                func.id if isinstance(func, ast.Name)
-                else func.attr if isinstance(func, ast.Attribute)
+                func.id
+                if isinstance(func, ast.Name)
+                else func.attr
+                if isinstance(func, ast.Attribute)
                 else None
             )
             if fname == name:
@@ -360,12 +397,16 @@ def test_watcher_integrates_lead_tracker() -> None:
         _check("watcher.py exists", False)
         return
     text = watcher_path.read_text(encoding="utf-8", errors="replace")
-    _check("watcher imports upsert_lead", "from firestore_leads import upsert_lead" in text)
+    _check(
+        "watcher imports upsert_lead", "from firestore_leads import upsert_lead" in text
+    )
     _check("watcher imports parseaddr", "from email.utils import parseaddr" in text)
 
     all_in_try, n = _all_calls_inside_try(text, "upsert_lead")
     _check(f"upsert_lead is called ({n} site{'s' if n != 1 else ''})", n >= 1)
-    _check("every upsert_lead call is inside a try-block (failure isolation)", all_in_try)
+    _check(
+        "every upsert_lead call is inside a try-block (failure isolation)", all_in_try
+    )
 
 
 def test_portal_status_writes_use_merge() -> None:
@@ -375,14 +416,16 @@ def test_portal_status_writes_use_merge() -> None:
         return
     text = page.read_text(encoding="utf-8", errors="replace")
     _check("portal status update uses setDoc", "setDoc" in text)
-    _check("portal status update passes { merge: true }", re.search(r"merge:\s*true", text) is not None)
+    _check(
+        "portal status update passes { merge: true }",
+        re.search(r"merge:\s*true", text) is not None,
+    )
     # Critical: the merge:true write must only include status + updatedAt,
     # NOT senderName/subject/etc — otherwise we'd clobber watcher-owned fields
     _check(
         "portal status payload only contains status + updatedAt",
-        re.search(
-            r"\{\s*status\s*,\s*updatedAt:\s*serverTimestamp\(\)\s*\}", text
-        ) is not None,
+        re.search(r"\{\s*status\s*,\s*updatedAt:\s*serverTimestamp\(\)\s*\}", text)
+        is not None,
     )
 
 

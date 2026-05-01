@@ -63,12 +63,7 @@ def main(argv: list[str]) -> int:
     print()
 
     for uid in uids:
-        ref = (
-            db.collection("users")
-            .document(uid)
-            .collection("config")
-            .document("main")
-        )
+        ref = db.collection("users").document(uid).collection("config").document("main")
         snap = ref.get()
         existing = snap.to_dict() if snap.exists else {}
         cur_senders = existing.get("priorityWatchSenders", [])
