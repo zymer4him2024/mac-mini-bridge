@@ -150,6 +150,7 @@
     "connect": {
       "title": "Your inbox is connected.",
       "body": "We use the Google account you signed in with to read emails as they arrive. Nothing leaves your account uninvited.",
+      "connectedBadge": "Connected as {email}",
       "cta": "Continue"
     },
     "watch": {

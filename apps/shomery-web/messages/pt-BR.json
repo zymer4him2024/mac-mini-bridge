@@ -150,6 +150,7 @@
     "connect": {
       "title": "Sua caixa de entrada está conectada.",
       "body": "Usamos a conta Google com a qual você entrou para ler e-mails à medida que chegam. Nada sai da sua conta sem permissão.",
+      "connectedBadge": "Conectado como {email}",
       "cta": "Continuar"
     },
     "watch": {
