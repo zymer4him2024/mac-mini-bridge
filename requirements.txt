@@ -1,4 +1,4 @@
-python-telegram-bot>=21.0,<22
+python-telegram-bot>=22.7,<23
 openai>=1.50.0,<2
 python-dotenv>=1.0.0,<2
 google-api-python-client>=2.195.0,<3
