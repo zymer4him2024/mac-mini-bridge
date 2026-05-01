@@ -129,3 +129,63 @@ def decode_header_value(raw: str) -> str:
     except (UnicodeDecodeError, LookupError, ValueError) as exc:
         log.warning("decode_header_value failed: %s — value=%r", exc, raw[:80])
         return raw
+
+
+def build_markdown_body(email: dict, summary: dict) -> str:
+    """Render the canonical .md document for an email.
+
+    The web reader at `/[locale]/subjects/[slug]/items/[itemId]` fetches
+    the upload produced by this function from `summaries/{uid}/{slug}/{id}.md`
+    and renders it via react-markdown + GFM. Keep the structure stable —
+    section headers double as anchors and as parse hints for future RAG
+    chunkers.
+
+    Empty list sections are omitted entirely so low-signal docs stay tidy.
+    Empty `suggested_response` keeps its header but a blank body, which
+    matches the intended user expectation that "no draft" is itself a result.
+    """
+    subject = (email.get("subject") or "(no subject)").strip() or "(no subject)"
+    sender = email.get("from") or ""
+    date = email.get("date") or ""
+    urgency = (summary.get("urgency") or "low").strip() or "low"
+    key_points = [str(p).strip() for p in (summary.get("key_points") or []) if p]
+    asks = [str(a).strip() for a in (summary.get("asks") or []) if a]
+    suggested_response = (summary.get("suggested_response") or "").strip()
+    body = (email.get("body") or "").strip()
+
+    parts: list[str] = [f"# {subject}", ""]
+
+    meta_lines: list[str] = []
+    if sender:
+        meta_lines.append(f"- **From:** {sender}")
+    if date:
+        meta_lines.append(f"- **Date:** {date}")
+    meta_lines.append(f"- **Urgency:** {urgency}")
+    parts.extend(meta_lines)
+    parts.append("")
+
+    if key_points:
+        parts.append("## Key points")
+        parts.extend(f"- {p}" for p in key_points)
+        parts.append("")
+
+    if asks:
+        parts.append("## Asks")
+        parts.extend(f"- {a}" for a in asks)
+        parts.append("")
+
+    parts.append("## Suggested response")
+    parts.append("")
+    if suggested_response:
+        parts.append(suggested_response)
+        parts.append("")
+
+    parts.append("---")
+    parts.append("")
+    parts.append("## Original message")
+    parts.append("")
+    if body:
+        parts.append(body)
+        parts.append("")
+
+    return "\n".join(parts).rstrip() + "\n"

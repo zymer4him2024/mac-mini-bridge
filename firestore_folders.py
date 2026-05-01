@@ -35,14 +35,17 @@ def upsert_folder_item(
     has_csv: bool,
     pdf_storage_path: str | None = None,
     summary_csv_storage_path: str | None = None,
+    markdown_storage_path: str | None = None,
 ) -> None:
     """Write one item doc and update the parent folder doc. Never raises.
 
     `item` mirrors the on-disk JSON sidecar payload (from, date, urgency,
     key_points, asks, suggested_response, pdf_filename).
 
-    `pdf_storage_path` and `summary_csv_storage_path`, when provided, are the
-    Firebase Storage object paths used by the portal to render download links.
+    `pdf_storage_path`, `summary_csv_storage_path`, and `markdown_storage_path`
+    are Firebase Storage object paths the web app uses to render download
+    links and the markdown reader. Markdown lives under `summaries/{uid}/...`,
+    the others under `users/{uid}/folders/{slug}/...`.
     """
     if not uid:
         log.warning("upsert_folder_item skipped: empty uid")
@@ -87,6 +90,8 @@ def upsert_folder_item(
         }
         if pdf_storage_path:
             item_doc["pdfStoragePath"] = pdf_storage_path
+        if markdown_storage_path:
+            item_doc["markdownStoragePath"] = markdown_storage_path
         folder_ref.collection("items").document(item_id).set(item_doc, merge=True)
     except gax.GoogleAPIError as exc:
         log.warning(
