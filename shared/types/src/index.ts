@@ -42,6 +42,13 @@ export interface FolderItem {
   pdfFilename: string;
   createdAt: Timestamp;
   pdfStoragePath?: string;
+  /**
+   * v1 storage seam: a Firebase Storage path under
+   * `summaries/{uid}/{subjectSlug}/{emailId}.md`.
+   * After Drive verification clears, this becomes a `drive://...` URI; the
+   * `getMarkdown()` helper is the single switch point.
+   */
+  markdownStoragePath?: string;
 }
 
 /**

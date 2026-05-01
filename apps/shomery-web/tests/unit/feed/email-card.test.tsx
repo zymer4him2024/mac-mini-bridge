@@ -89,4 +89,40 @@ describe("EmailCard", () => {
     render(withIntl(<EmailCard item={makeItem({ keyPoints: [] })} />));
     expect(screen.queryByRole("list")).not.toBeInTheDocument();
   });
+
+  it("omits the Read full link when markdownStoragePath is missing", () => {
+    render(withIntl(<EmailCard item={makeItem()} itemId="abc123" />));
+    expect(screen.queryByText(/Read full/)).not.toBeInTheDocument();
+  });
+
+  it("omits the Read full link when itemId is missing", () => {
+    render(
+      withIntl(
+        <EmailCard
+          item={makeItem({
+            markdownStoragePath: "summaries/alice/acme/abc123.md",
+          })}
+        />,
+      ),
+    );
+    expect(screen.queryByText(/Read full/)).not.toBeInTheDocument();
+  });
+
+  it("renders the Read full link pointing at the item route", () => {
+    render(
+      withIntl(
+        <EmailCard
+          item={makeItem({
+            markdownStoragePath: "summaries/alice/acme-deal/abc123.md",
+          })}
+          itemId="abc123"
+        />,
+      ),
+    );
+    const link = screen.getByText(/Read full/);
+    expect(link).toBeInTheDocument();
+    expect(link.closest("a")?.getAttribute("href")).toBe(
+      "/en/subjects/acme-deal/items/abc123",
+    );
+  });
 });
