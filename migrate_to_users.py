@@ -129,8 +129,10 @@ def main() -> None:
 
     print()
     print("=" * 60)
-    print(f"Migration complete. {len(users)} user(s) "
-          f"({len(admins)} admin, {len(customers)} customer)")
+    print(
+        f"Migration complete. {len(users)} user(s) "
+        f"({len(admins)} admin, {len(customers)} customer)"
+    )
     if promoted:
         print()
         print("Admins promoted:")

@@ -41,9 +41,7 @@ def get_db():
     if not SERVICE_ACCOUNT.exists():
         raise FileNotFoundError(f"service account missing: {SERVICE_ACCOUNT}")
     if not firebase_admin._apps:
-        firebase_admin.initialize_app(
-            credentials.Certificate(str(SERVICE_ACCOUNT))
-        )
+        firebase_admin.initialize_app(credentials.Certificate(str(SERVICE_ACCOUNT)))
     db_id = os.environ.get("FIRESTORE_DATABASE_ID", "email2ppt")
     return firestore.client(database_id=db_id)
 
@@ -97,9 +95,7 @@ def report_run(
 
     try:
         db = get_db()
-        db.collection("users").document(user_uid).collection(
-            "activity"
-        ).add(record)
+        db.collection("users").document(user_uid).collection("activity").add(record)
     except FileNotFoundError as exc:
         log.warning("activity report skipped: %s", exc)
     except gax.GoogleAPIError as exc:

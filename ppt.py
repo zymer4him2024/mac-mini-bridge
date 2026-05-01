@@ -63,6 +63,7 @@ logging.basicConfig(
 )
 log = logging.getLogger("ppt")
 from log_redaction import install_redaction_filter  # noqa: E402
+
 install_redaction_filter(logging.getLogger())
 
 
@@ -110,7 +111,9 @@ def fetch_emails(query: str, max_results: int = 25) -> list:
 
 
 # ---------- LLM summarization ----------
-DEFAULT_PERSONA_LINE = "You are an executive assistant summarizing emails for the recipient."
+DEFAULT_PERSONA_LINE = (
+    "You are an executive assistant summarizing emails for the recipient."
+)
 
 EMAIL_USER_TEMPLATE = """Summarize the email below into structured JSON ONLY (no prose, no markdown fences).
 
@@ -228,8 +231,16 @@ URGENCY_COLOR = {
 
 
 def _add_text(
-    slide, text, left, top, width, height, size,
-    bold=False, color=None, align=None,
+    slide,
+    text,
+    left,
+    top,
+    width,
+    height,
+    size,
+    bold=False,
+    color=None,
+    align=None,
 ):
     tb = slide.shapes.add_textbox(left, top, width, height)
     tf = tb.text_frame
@@ -253,7 +264,9 @@ def _short_sender(from_field: str) -> str:
     return from_field
 
 
-def build_deck(query: str, top3: list, summarized: list, run_at: datetime) -> Presentation:
+def build_deck(
+    query: str, top3: list, summarized: list, run_at: datetime
+) -> Presentation:
     prs = Presentation()
     prs.slide_width = Inches(13.333)
     prs.slide_height = Inches(7.5)
@@ -261,19 +274,58 @@ def build_deck(query: str, top3: list, summarized: list, run_at: datetime) -> Pr
 
     # Title
     s1 = prs.slides.add_slide(blank)
-    _add_text(s1, "Email Digest", Inches(0.6), Inches(2.4), Inches(12), Inches(1.4), 54, bold=True)
-    _add_text(s1, run_at.strftime("%A, %B %d, %Y"), Inches(0.6), Inches(3.8), Inches(12), Inches(0.6), 24)
     _add_text(
-        s1, f"Query: {query}",
-        Inches(0.6), Inches(4.5), Inches(12), Inches(0.6),
-        16, color=RGBColor(0x86, 0x86, 0x8A),
+        s1,
+        "Email Digest",
+        Inches(0.6),
+        Inches(2.4),
+        Inches(12),
+        Inches(1.4),
+        54,
+        bold=True,
+    )
+    _add_text(
+        s1,
+        run_at.strftime("%A, %B %d, %Y"),
+        Inches(0.6),
+        Inches(3.8),
+        Inches(12),
+        Inches(0.6),
+        24,
+    )
+    _add_text(
+        s1,
+        f"Query: {query}",
+        Inches(0.6),
+        Inches(4.5),
+        Inches(12),
+        Inches(0.6),
+        16,
+        color=RGBColor(0x86, 0x86, 0x8A),
     )
 
     # Top 3
     s2 = prs.slides.add_slide(blank)
-    _add_text(s2, "Top 3 Things to Know", Inches(0.6), Inches(0.5), Inches(12), Inches(1), 36, bold=True)
+    _add_text(
+        s2,
+        "Top 3 Things to Know",
+        Inches(0.6),
+        Inches(0.5),
+        Inches(12),
+        Inches(1),
+        36,
+        bold=True,
+    )
     for i, item in enumerate(top3):
-        _add_text(s2, f"• {item}", Inches(0.8), Inches(2.0 + 0.9 * i), Inches(12), Inches(1), 22)
+        _add_text(
+            s2,
+            f"• {item}",
+            Inches(0.8),
+            Inches(2.0 + 0.9 * i),
+            Inches(12),
+            Inches(1),
+            22,
+        )
 
     # Per email
     for s in summarized:
@@ -281,16 +333,41 @@ def build_deck(query: str, top3: list, summarized: list, run_at: datetime) -> Pr
         d = s["data"]
         slide = prs.slides.add_slide(blank)
 
-        _add_text(slide, _short_sender(e["from"]), Inches(0.6), Inches(0.4), Inches(11), Inches(0.7), 28, bold=True)
-        _add_text(slide, e["subject"], Inches(0.6), Inches(1.0), Inches(11), Inches(0.6), 16, color=RGBColor(0x48, 0x48, 0x4A))
+        _add_text(
+            slide,
+            _short_sender(e["from"]),
+            Inches(0.6),
+            Inches(0.4),
+            Inches(11),
+            Inches(0.7),
+            28,
+            bold=True,
+        )
+        _add_text(
+            slide,
+            e["subject"],
+            Inches(0.6),
+            Inches(1.0),
+            Inches(11),
+            Inches(0.6),
+            16,
+            color=RGBColor(0x48, 0x48, 0x4A),
+        )
 
         urgency = (d.get("urgency") or "low").lower()
         if urgency not in URGENCY_COLOR:
             urgency = "low"
         _add_text(
-            slide, urgency.upper(),
-            Inches(11.5), Inches(0.4), Inches(1.3), Inches(0.5),
-            14, bold=True, color=URGENCY_COLOR[urgency], align=PP_ALIGN.RIGHT,
+            slide,
+            urgency.upper(),
+            Inches(11.5),
+            Inches(0.4),
+            Inches(1.3),
+            Inches(0.5),
+            14,
+            bold=True,
+            color=URGENCY_COLOR[urgency],
+            align=PP_ALIGN.RIGHT,
         )
 
         y = 1.8
@@ -302,18 +379,35 @@ def build_deck(query: str, top3: list, summarized: list, run_at: datetime) -> Pr
             items = d.get(key) or []
             if not items:
                 continue
-            _add_text(slide, label, Inches(0.6), Inches(y), Inches(11), Inches(0.4), 16, bold=True)
+            _add_text(
+                slide,
+                label,
+                Inches(0.6),
+                Inches(y),
+                Inches(11),
+                Inches(0.4),
+                16,
+                bold=True,
+            )
             y += 0.45
             for b in items[:max_items]:
-                _add_text(slide, f"• {b}", Inches(0.8), Inches(y), Inches(11), Inches(0.4), 14)
+                _add_text(
+                    slide, f"• {b}", Inches(0.8), Inches(y), Inches(11), Inches(0.4), 14
+                )
                 y += 0.35
             y += 0.2
 
         if d.get("suggested_response"):
             _add_text(
-                slide, f"→ {d['suggested_response']}",
-                Inches(0.6), Inches(6.6), Inches(12), Inches(0.6),
-                14, bold=True, color=RGBColor(0x00, 0x71, 0xE3),
+                slide,
+                f"→ {d['suggested_response']}",
+                Inches(0.6),
+                Inches(6.6),
+                Inches(12),
+                Inches(0.6),
+                14,
+                bold=True,
+                color=RGBColor(0x00, 0x71, 0xE3),
             )
 
     return prs
@@ -358,7 +452,9 @@ def main():
             except Exception:  # noqa: BLE001 - CLI tool degrades gracefully
                 # without a config; persona/limits fall back to defaults rather
                 # than aborting the deck build.
-                log.warning("uid=%s failed to load user config; using defaults", USER_UID)
+                log.warning(
+                    "uid=%s failed to load user config; using defaults", USER_UID
+                )
         system_msg = _build_system_message(cfg)
 
         summarized = []

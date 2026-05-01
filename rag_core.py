@@ -4,6 +4,7 @@ Embeds the question, retrieves nearest passages from a per-folder vector
 index, and grounds an LLM reply on those passages (NotebookLM-style: refuse
 when context is insufficient). Knows nothing about Telegram/Slack/etc.
 """
+
 from __future__ import annotations
 
 import logging
@@ -51,16 +52,13 @@ def grounded_answer(
     system = (
         "You answer the user's question using ONLY the provided email summaries. "
         "If the answer is not contained in the context, reply exactly: "
-        "\"I don't have that in this folder.\" "
+        '"I don\'t have that in this folder." '
         "Do not invent, speculate, or use outside knowledge. "
         f"Keep replies {style_hint}. "
         "When citing, refer to senders by name."
     )
     user = (
-        f"Folder: {subject}\n\n"
-        f"Context:\n{context}\n\n"
-        f"Question: {question}\n\n"
-        f"Answer:"
+        f"Folder: {subject}\n\nContext:\n{context}\n\nQuestion: {question}\n\nAnswer:"
     )
     try:
         resp = _llm.chat.completions.create(
@@ -103,7 +101,12 @@ def answer_question(
         hits = search_embeddings(db, uid, slug, qvec, k=k)
     except (OpenAIError, OSError, ValueError, gax.GoogleAPIError) as exc:
         log.exception("RAG retrieval failed (uid=%s slug=%s): %s", uid, slug, exc)
-        return error_reply, {"error": "retrieval", "hits": 0, "relevant": 0, "top_dist": 1.0}
+        return error_reply, {
+            "error": "retrieval",
+            "hits": 0,
+            "relevant": 0,
+            "top_dist": 1.0,
+        }
 
     relevant = [h for h in hits if h.get("distance", 1.0) <= distance_threshold]
     top_dist = hits[0]["distance"] if hits else 1.0

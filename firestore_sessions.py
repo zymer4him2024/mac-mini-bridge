@@ -30,10 +30,7 @@ log = logging.getLogger("firestore_sessions")
 
 def _ref(db, uid: str):
     return (
-        db.collection("users")
-        .document(uid)
-        .collection("sessions")
-        .document("telegram")
+        db.collection("users").document(uid).collection("sessions").document("telegram")
     )
 
 

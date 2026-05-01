@@ -31,8 +31,7 @@ def _normalize_charset(name: str) -> str:
 
 def _part_headers(part: dict) -> dict:
     return {
-        h.get("name", "").lower(): h.get("value", "")
-        for h in part.get("headers") or []
+        h.get("name", "").lower(): h.get("value", "") for h in part.get("headers") or []
     }
 
 
@@ -56,11 +55,15 @@ def _strip_html(text: str) -> str:
     """Coarse HTML to text: drop scripts/styles, convert breaks, strip tags,
     decode entities, collapse whitespace."""
     text = re.sub(
-        r"<(script|style)\b[^>]*>.*?</\1>", " ", text,
+        r"<(script|style)\b[^>]*>.*?</\1>",
+        " ",
+        text,
         flags=re.DOTALL | re.IGNORECASE,
     )
     text = re.sub(
-        r"<\s*(br\s*/?|/p|/div|/li|/tr)\s*>", "\n", text,
+        r"<\s*(br\s*/?|/p|/div|/li|/tr)\s*>",
+        "\n",
+        text,
         flags=re.IGNORECASE,
     )
     text = re.sub(r"<[^>]+>", "", text)

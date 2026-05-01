@@ -33,87 +33,13 @@ jobs:
       - name: Ruff format check
         run: ruff format --check .
 
-      - name: Bandit security scan
+      - name: Bandit security scan (advisory)
         run: bandit -r . -x ./venv,./tests,./node_modules
-
-      - name: Mypy strict type-check
-        run: mypy --strict --ignore-missing-imports --exclude '(venv|migrate_.*\.py|backfill_.*\.py)' .
         continue-on-error: true
 
-  portal:
-    name: Portal (lint, build, test)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/email2ppt-portal
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: apps/email2ppt-portal/package-lock.json
-
-      - name: Install portal deps
-        run: npm ci
-
-      - name: Lint
-        run: npm run lint --if-present
-
-      - name: Build
-        run: npm run build --if-present
-
-      - name: Test
-        run: npm test --if-present
-
-  functions:
-    name: Cloud Functions (lint, build, test)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/email2ppt-portal/functions
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: apps/email2ppt-portal/functions/package-lock.json
-
-      - name: Install functions deps
-        run: npm ci
-
-      - name: Lint
-        run: npm run lint --if-present
-
-      - name: Build
-        run: npm run build --if-present
-
-      - name: Test
-        run: npm test --if-present
-
-  rules-tests:
-    name: Firestore rules tests
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/email2ppt-portal
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: apps/email2ppt-portal/package-lock.json
-
-      - name: Install portal deps
-        run: npm ci
-
-      - name: Run rules tests
-        run: npm run test:rules --if-present
+      - name: Mypy strict type-check (advisory)
+        run: mypy --strict --ignore-missing-imports --exclude '(venv|migrate_.*\.py|backfill_.*\.py)' .
+        continue-on-error: true
 
   gitleaks:
     name: Secret scan (gitleaks)

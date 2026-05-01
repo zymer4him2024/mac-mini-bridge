@@ -44,9 +44,7 @@ def _client():
     if not SERVICE_ACCOUNT.exists():
         raise FileNotFoundError(f"service account missing: {SERVICE_ACCOUNT}")
     if not firebase_admin._apps:
-        firebase_admin.initialize_app(
-            credentials.Certificate(str(SERVICE_ACCOUNT))
-        )
+        firebase_admin.initialize_app(credentials.Certificate(str(SERVICE_ACCOUNT)))
     db_id = os.environ.get("FIRESTORE_DATABASE_ID", "email2ppt")
     return firestore.client(database_id=db_id)
 
@@ -71,6 +69,4 @@ def record_audit(
             }
         )
     except (gax.GoogleAPIError, FileNotFoundError, OSError, ValueError) as exc:
-        log.warning(
-            "audit write failed uid=%s event=%s: %s", uid, event, exc
-        )
+        log.warning("audit write failed uid=%s event=%s: %s", uid, event, exc)
