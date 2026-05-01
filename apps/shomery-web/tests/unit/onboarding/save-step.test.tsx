@@ -52,6 +52,16 @@ describe("SaveStep", () => {
     expect(pushMock).toHaveBeenCalledWith("/feed");
   });
 
+  it("explains today's storage location and that Drive is gated on verification", () => {
+    render(withIntl(<SaveStep />));
+    expect(
+      screen.getByText(/Firebase Storage, scoped to your account/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Google Drive support is in review/),
+    ).toBeInTheDocument();
+  });
+
   it("surfaces a completion error and does not navigate", async () => {
     markMock.mockRejectedValueOnce(new Error("offline"));
     render(withIntl(<SaveStep />));

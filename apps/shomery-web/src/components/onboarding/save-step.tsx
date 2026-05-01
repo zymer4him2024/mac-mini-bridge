@@ -33,7 +33,16 @@ export function SaveStep() {
   return (
     <OnboardingShell step={3}>
       <h1 className="text-2xl font-bold text-ink">{t("title")}</h1>
-      <p className="mt-4 text-base text-soft">{t("body")}</p>
+
+      <section className="mt-6 space-y-1">
+        <p className="text-sm font-bold text-ink">{t("storageLabel")}</p>
+        <p className="text-sm text-soft">{t("storage")}</p>
+      </section>
+
+      <section className="mt-5 space-y-1">
+        <p className="text-sm font-bold text-ink">{t("driveLabel")}</p>
+        <p className="text-sm text-soft">{t("drive")}</p>
+      </section>
 
       {completion === "error" ? (
         <p role="alert" className="mt-4 text-sm text-warn">
