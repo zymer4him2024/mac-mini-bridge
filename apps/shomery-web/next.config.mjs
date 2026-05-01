@@ -6,6 +6,9 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  output: "export",
+  images: { unoptimized: true },
+  trailingSlash: true,
 };
 
 export default withNextIntl(nextConfig);
