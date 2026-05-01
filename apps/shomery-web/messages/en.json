@@ -92,6 +92,30 @@
       },
       "toggleOn": "Enable {channel}",
       "toggleOff": "Disable {channel}"
+    },
+    "privacy": {
+      "label": "Privacy & data",
+      "helpText": "Take your data with you, or remove it from Shomery for good.",
+      "export": {
+        "title": "Export my data",
+        "body": "Download a JSON file with your account, settings, and every summary Shomery has stored for you.",
+        "action": "Download export",
+        "actionPending": "Preparing export…",
+        "done": "Downloaded.",
+        "error": "We couldn't build your export. Please try again."
+      },
+      "delete": {
+        "title": "Delete my account",
+        "body": "Removes your sign-in, settings, and every summary. This cannot be undone.",
+        "action": "Delete my account",
+        "confirmPhrase": "DELETE",
+        "confirmPrompt": "Type {phrase} to confirm.",
+        "confirmInputLabel": "Confirmation phrase",
+        "confirmAction": "Permanently delete",
+        "confirmPending": "Deleting…",
+        "cancel": "Cancel",
+        "error": "We couldn't delete your account. Please try again."
+      }
     }
   },
   "onboarding": {

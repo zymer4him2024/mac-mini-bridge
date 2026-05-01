@@ -11,6 +11,11 @@ import {
   type Firestore,
 } from "firebase/firestore";
 import {
+  connectFunctionsEmulator,
+  getFunctions,
+  type Functions,
+} from "firebase/functions";
+import {
   connectStorageEmulator,
   getStorage,
   type FirebaseStorage,
@@ -37,6 +42,7 @@ let cachedApp: FirebaseApp | null = null;
 let cachedAuth: Auth | null = null;
 let cachedDb: Firestore | null = null;
 let cachedStorage: FirebaseStorage | null = null;
+let cachedFunctions: Functions | null = null;
 let emulatorsWired = false;
 
 function getFirebaseApp(): FirebaseApp {
@@ -45,7 +51,12 @@ function getFirebaseApp(): FirebaseApp {
   return cachedApp;
 }
 
-function wireEmulatorsOnce(auth: Auth, db: Firestore, storage: FirebaseStorage): void {
+function wireEmulatorsOnce(
+  auth: Auth,
+  db: Firestore,
+  storage: FirebaseStorage,
+  functions: Functions,
+): void {
   if (emulatorsWired) return;
   if (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR !== "true") return;
   if (typeof window === "undefined") return;
@@ -53,13 +64,19 @@ function wireEmulatorsOnce(auth: Auth, db: Firestore, storage: FirebaseStorage):
   connectAuthEmulator(auth, "http://localhost:9099", { disableWarnings: true });
   connectFirestoreEmulator(db, "localhost", 8080);
   connectStorageEmulator(storage, "localhost", 9199);
+  connectFunctionsEmulator(functions, "localhost", 5001);
   emulatorsWired = true;
 }
 
 export function getFirebaseAuth(): Auth {
   if (!cachedAuth) {
     cachedAuth = getAuth(getFirebaseApp());
-    wireEmulatorsOnce(cachedAuth, getFirebaseDb(), getFirebaseStorage());
+    wireEmulatorsOnce(
+      cachedAuth,
+      getFirebaseDb(),
+      getFirebaseStorage(),
+      getFirebaseFunctions(),
+    );
   }
   return cachedAuth;
 }
@@ -76,6 +93,13 @@ export function getFirebaseStorage(): FirebaseStorage {
     cachedStorage = getStorage(getFirebaseApp());
   }
   return cachedStorage;
+}
+
+export function getFirebaseFunctions(): Functions {
+  if (!cachedFunctions) {
+    cachedFunctions = getFunctions(getFirebaseApp());
+  }
+  return cachedFunctions;
 }
 
 if (

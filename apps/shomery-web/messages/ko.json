@@ -92,6 +92,30 @@
       },
       "toggleOn": "{channel} 켜기",
       "toggleOff": "{channel} 끄기"
+    },
+    "privacy": {
+      "label": "개인정보 및 데이터",
+      "helpText": "내 데이터를 내려받거나 Shomery에서 완전히 삭제할 수 있습니다.",
+      "export": {
+        "title": "내 데이터 내보내기",
+        "body": "계정, 설정, Shomery에 저장된 모든 요약을 JSON 파일로 내려받습니다.",
+        "action": "내보내기 다운로드",
+        "actionPending": "내보내기 준비 중…",
+        "done": "다운로드되었습니다.",
+        "error": "내보내기를 만들지 못했어요. 다시 시도해 주세요."
+      },
+      "delete": {
+        "title": "계정 삭제",
+        "body": "로그인 정보, 설정, 모든 요약이 영구적으로 삭제됩니다. 되돌릴 수 없습니다.",
+        "action": "계정 삭제",
+        "confirmPhrase": "DELETE",
+        "confirmPrompt": "확인하려면 {phrase}을(를) 입력하세요.",
+        "confirmInputLabel": "확인 문구",
+        "confirmAction": "영구 삭제",
+        "confirmPending": "삭제 중…",
+        "cancel": "취소",
+        "error": "계정을 삭제하지 못했어요. 다시 시도해 주세요."
+      }
     }
   },
   "onboarding": {
