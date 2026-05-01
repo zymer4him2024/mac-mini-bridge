@@ -52,6 +52,7 @@ logging.basicConfig(
 )
 log = logging.getLogger("config_sync")
 from log_redaction import install_redaction_filter  # noqa: E402
+
 install_redaction_filter(logging.getLogger())
 
 
@@ -87,10 +88,7 @@ def fetch_remote() -> dict | None:
         log.error("%s", exc)
         sys.exit(1)
     doc_ref = (
-        db.collection("users")
-        .document(USER_UID)
-        .collection("config")
-        .document("main")
+        db.collection("users").document(USER_UID).collection("config").document("main")
     )
     try:
         snap = doc_ref.get()
@@ -147,8 +145,12 @@ def main() -> None:
             added = set(remote_senders) - set(local_senders)
             removed = set(local_senders) - set(remote_senders)
             write_senders(remote_senders)
-            diffs.append(f"senders: +{len(added)} -{len(removed)} (now {len(remote_senders)})")
-            log.info("senders updated: added=%s removed=%s", sorted(added), sorted(removed))
+            diffs.append(
+                f"senders: +{len(added)} -{len(removed)} (now {len(remote_senders)})"
+            )
+            log.info(
+                "senders updated: added=%s removed=%s", sorted(added), sorted(removed)
+            )
 
         if remote_lookback != local_lookback:
             write_lookback(remote_lookback)

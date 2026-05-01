@@ -1,0 +1,6 @@
+extend-exclude = [
+    "gdpr_local_cleanup.py",
+    "kms_envelope.py",
+    "log_redaction.py",
+    "retention_sweep.py",
+]

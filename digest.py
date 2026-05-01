@@ -56,6 +56,7 @@ logging.basicConfig(
 )
 log = logging.getLogger("digest")
 from log_redaction import install_redaction_filter  # noqa: E402
+
 install_redaction_filter(logging.getLogger())
 
 
@@ -70,10 +71,7 @@ def fetch_priority_emails(creds, senders: list, lookback: str) -> list:
     log.info(f"Gmail query: {query}")
 
     result = (
-        service.users()
-        .messages()
-        .list(userId="me", q=query, maxResults=25)
-        .execute()
+        service.users().messages().list(userId="me", q=query, maxResults=25).execute()
     )
     messages = result.get("messages", [])
 
@@ -109,7 +107,11 @@ def summarize_emails(emails: list, cfg: dict | None = None) -> tuple:
     display_name = (cfg.get("displayName") or "").strip()
     extra_instructions = (cfg.get("summaryPersona") or "").strip()
 
-    persona = f"{display_name}'s executive assistant" if display_name else "an executive assistant"
+    persona = (
+        f"{display_name}'s executive assistant"
+        if display_name
+        else "an executive assistant"
+    )
     user_ref = display_name if display_name else "the user"
 
     system_msg = f"You are {persona}."
@@ -220,7 +222,9 @@ DIGEST TO COMPRESS:
 
 
 # ---------- File save ----------
-def save_markdown(uid: str, full_markdown: str, run_at: datetime, email_count: int) -> Path:
+def save_markdown(
+    uid: str, full_markdown: str, run_at: datetime, email_count: int
+) -> Path:
     filename = run_at.strftime("%Y-%m-%d") + "-morning.md"
     user_dir = DIGEST_DIR / uid
     user_dir.mkdir(parents=True, exist_ok=True)

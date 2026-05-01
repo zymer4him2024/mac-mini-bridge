@@ -63,12 +63,7 @@ def _find_email_for_lead(
     service, sender_email: str, target_slug: str, lookback_days: int
 ) -> dict | None:
     query = f"from:{sender_email} newer_than:{lookback_days}d"
-    res = (
-        service.users()
-        .messages()
-        .list(userId="me", q=query, maxResults=50)
-        .execute()
-    )
+    res = service.users().messages().list(userId="me", q=query, maxResults=50).execute()
     for m in res.get("messages") or []:
         msg = (
             service.users()
@@ -78,12 +73,9 @@ def _find_email_for_lead(
         )
         payload = msg.get("payload") or {}
         headers = {
-            h.get("name", ""): h.get("value", "")
-            for h in payload.get("headers") or []
+            h.get("name", ""): h.get("value", "") for h in payload.get("headers") or []
         }
-        msg_subject = (
-            decode_header_value(headers.get("Subject", "")) or "(no subject)"
-        )
+        msg_subject = decode_header_value(headers.get("Subject", "")) or "(no subject)"
         if _subject_slug(msg_subject) != target_slug:
             continue
         return {
@@ -135,17 +127,13 @@ def resummarize_user(
         subject = lead.get("subject") or ""
         if not sender or not slug:
             counts["errors"] += 1
-            log.warning(
-                "[%s] lead=%s missing sender/slug; skipping", uid, lead_id
-            )
+            log.warning("[%s] lead=%s missing sender/slug; skipping", uid, lead_id)
             continue
 
         try:
             email = _find_email_for_lead(service, sender, slug, lookback_days)
         except Exception as exc:  # noqa: BLE001 - log per-lead, continue
-            log.warning(
-                "[%s] gmail search failed lead=%s: %s", uid, lead_id, exc
-            )
+            log.warning("[%s] gmail search failed lead=%s: %s", uid, lead_id, exc)
             counts["errors"] += 1
             continue
 
@@ -176,10 +164,8 @@ def resummarize_user(
                     "lastContext": list(summary.get("context") or []),
                     "lastKeyPoints": list(summary.get("key_points") or []),
                     "lastAsks": list(summary.get("asks") or []),
-                    "lastSummaryResponse": summary.get("suggested_response")
-                    or "",
-                    "urgency": summary.get("urgency")
-                    or lead.get("urgency", "low"),
+                    "lastSummaryResponse": summary.get("suggested_response") or "",
+                    "urgency": summary.get("urgency") or lead.get("urgency", "low"),
                 },
                 merge=True,
             )
@@ -192,9 +178,7 @@ def resummarize_user(
                 len(summary.get("asks") or []),
             )
         except Exception as exc:  # noqa: BLE001 - log per-lead, continue
-            log.warning(
-                "[%s] resummarize failed lead=%s: %s", uid, lead_id, exc
-            )
+            log.warning("[%s] resummarize failed lead=%s: %s", uid, lead_id, exc)
             counts["errors"] += 1
 
         if sleep_between:
@@ -271,9 +255,7 @@ def main() -> int:
     log.info("==== grand total ====")
     log.info("%s", grand)
     if args.dry_run:
-        log.info(
-            "dry-run: would have resummarized %d leads", grand["updated"]
-        )
+        log.info("dry-run: would have resummarized %d leads", grand["updated"])
     return 0 if grand["errors"] == 0 else 1
 
 

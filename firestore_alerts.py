@@ -62,9 +62,7 @@ def _user_creds(uid: str) -> tuple[str, int] | None:
             unwrapped = unwrap_token(str(token))
             return unwrapped, int(chat_id)
         except (TypeError, ValueError, RuntimeError) as exc:
-            log.warning(
-                "users/%s.customerBot token/chatId unusable: %s", uid, exc
-            )
+            log.warning("users/%s.customerBot token/chatId unusable: %s", uid, exc)
 
     tg = data.get("telegram") or {}
     tg_chat = tg.get("chatId")
@@ -120,14 +118,18 @@ def _post_with_retry(
             if resp.status_code not in _RETRY_STATUSES:
                 log.warning(
                     "Telegram %s for uid=%s failed (no retry): %s",
-                    label, uid, last_err,
+                    label,
+                    uid,
+                    last_err,
                 )
                 return False
         if attempt < len(_RETRY_BACKOFFS):
             time.sleep(_RETRY_BACKOFFS[attempt])
     log.warning(
         "Telegram %s for uid=%s failed after 3 attempts: %s",
-        label, uid, last_err,
+        label,
+        uid,
+        last_err,
     )
     return False
 

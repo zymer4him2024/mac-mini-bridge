@@ -47,9 +47,7 @@ def main(argv: list[str]) -> int:
             print(f"uid={uid}: no gmail.email; skipping all folders")
             continue
 
-        folders_ref = (
-            db.collection("users").document(uid).collection("folders")
-        )
+        folders_ref = db.collection("users").document(uid).collection("folders")
         for snap in folders_ref.stream():
             data = snap.to_dict() or {}
             old_path = data.get("folderPath") or ""

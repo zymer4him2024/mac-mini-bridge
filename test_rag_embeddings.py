@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import sys
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -116,8 +116,7 @@ def test_write_and_recall(s: TestState) -> None:
         write_doc(s, SLUG_A, suf, text)
     for suf, text in DOCS_B:
         write_doc(s, SLUG_B, suf, text)
-    s.record("wrote 5 probe docs", len(s.written) == 5,
-             f"written={len(s.written)}")
+    s.record("wrote 5 probe docs", len(s.written) == 5, f"written={len(s.written)}")
 
 
 def test_top_hit_in_folder(s: TestState) -> None:
@@ -136,8 +135,11 @@ def test_top_hit_in_folder(s: TestState) -> None:
         # plain substring match is unambiguous).
         all_a = all(SLUG_A in h["messageId"] for h in hits)
         no_b = all(SLUG_B not in h["messageId"] for h in hits)
-        s.record("all hits are folder A", all_a and no_b,
-                 f"msgs={[h['messageId'] for h in hits]}")
+        s.record(
+            "all hits are folder A",
+            all_a and no_b,
+            f"msgs={[h['messageId'] for h in hits]}",
+        )
 
 
 def test_folder_isolation(s: TestState) -> None:

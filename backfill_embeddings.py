@@ -44,12 +44,7 @@ def _embedding_doc_id(lead_id: str) -> str:
 
 
 def _embedding_already_indexed(db, uid: str, doc_id: str) -> bool:
-    ref = (
-        db.collection("users")
-        .document(uid)
-        .collection("embeddings")
-        .document(doc_id)
-    )
+    ref = db.collection("users").document(uid).collection("embeddings").document(doc_id)
     snap = ref.get()
     if not snap.exists:
         return False

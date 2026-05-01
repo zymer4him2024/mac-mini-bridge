@@ -81,7 +81,7 @@ def test_fix1_senders_step(r: Results) -> None:
                 r.bad(label, f"missing token {needle!r}")
 
         # SENDERS must come AFTER TEST_PENDING and BEFORE DONE
-        if re.search(r'TEST_PENDING.*SENDERS.*DONE', text, re.DOTALL):
+        if re.search(r"TEST_PENDING.*SENDERS.*DONE", text, re.DOTALL):
             r.ok("STEP_VALUES order: TEST_PENDING -> SENDERS -> DONE")
         else:
             r.bad("STEP_VALUES order", "expected TEST_PENDING then SENDERS then DONE")
@@ -204,7 +204,7 @@ def test_fix5_settings_tabs(r: Results) -> None:
 
     # And lucide imports for those tabs should be gone
     for forbidden in ("FileText", "Brain"):
-        if re.search(rf'\b{forbidden}\b', text):
+        if re.search(rf"\b{forbidden}\b", text):
             r.bad(f"{forbidden} import not removed")
         else:
             r.ok(f"{forbidden} import removed")

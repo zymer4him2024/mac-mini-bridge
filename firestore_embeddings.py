@@ -108,9 +108,7 @@ def search_embeddings(
         raise ValueError(
             f"search_embeddings: vector dim {len(query_vector)} != {EMBEDDING_DIM}"
         )
-    coll = (
-        db.collection("users").document(uid).collection("embeddings")
-    )
+    coll = db.collection("users").document(uid).collection("embeddings")
     q = coll.where("subjectSlug", "==", subject_slug).find_nearest(
         vector_field="vector",
         query_vector=Vector(query_vector),
@@ -156,9 +154,7 @@ def delete_embeddings_for_user(db, uid: str) -> int:
             snap.reference.delete()
             deleted += 1
         except gax.GoogleAPIError as exc:
-            log.warning(
-                "delete_embeddings_for_user: failed on %s: %s", snap.id, exc
-            )
+            log.warning("delete_embeddings_for_user: failed on %s: %s", snap.id, exc)
     return deleted
 
 
@@ -172,7 +168,5 @@ def delete_stale_embeddings(db, uid: str, older_than: datetime) -> int:
             snap.reference.delete()
             deleted += 1
         except gax.GoogleAPIError as exc:
-            log.warning(
-                "delete_stale_embeddings: failed on %s: %s", snap.id, exc
-            )
+            log.warning("delete_stale_embeddings: failed on %s: %s", snap.id, exc)
     return deleted

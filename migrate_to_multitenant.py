@@ -33,9 +33,7 @@ SERVICE_ACCOUNT = BASE_DIR / "firebase-service-account.json"
 FIRESTORE_DB_ID = os.environ.get("FIRESTORE_DATABASE_ID", "email2ppt")
 OWNER_EMAIL = os.environ.get("EMAIL2PPT_OWNER_EMAIL", "zymer4him@gmail.com")
 
-logging.basicConfig(
-    level=logging.INFO, format="%(levelname)s %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 log = logging.getLogger("migrate")
 
 

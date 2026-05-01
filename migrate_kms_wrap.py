@@ -47,9 +47,7 @@ def _client():
         log.error("service account missing: %s", SERVICE_ACCOUNT)
         sys.exit(1)
     if not firebase_admin._apps:
-        firebase_admin.initialize_app(
-            credentials.Certificate(str(SERVICE_ACCOUNT))
-        )
+        firebase_admin.initialize_app(credentials.Certificate(str(SERVICE_ACCOUNT)))
     return firestore.client(database_id=FIRESTORE_DB_ID)
 
 
@@ -81,10 +79,7 @@ def main() -> None:
 
         # 2. secrets/gmail.refreshToken
         secret_ref = (
-            db.collection("users")
-            .document(uid)
-            .collection("secrets")
-            .document("gmail")
+            db.collection("users").document(uid).collection("secrets").document("gmail")
         )
         secret_snap = secret_ref.get()
         if secret_snap.exists:
@@ -97,13 +92,10 @@ def main() -> None:
                     wrapped = wrap_token(rt)
                     secret_ref.set({"refreshToken": wrapped}, merge=True)
                     refresh_wrapped += 1
-                    log.info(
-                        "uid=%s secrets/gmail.refreshToken wrapped", uid
-                    )
+                    log.info("uid=%s secrets/gmail.refreshToken wrapped", uid)
 
     log.info(
-        "done. refresh_wrapped=%d refresh_skipped=%d "
-        "bot_wrapped=%d bot_skipped=%d",
+        "done. refresh_wrapped=%d refresh_skipped=%d bot_wrapped=%d bot_skipped=%d",
         refresh_wrapped,
         refresh_skipped,
         bot_wrapped,
