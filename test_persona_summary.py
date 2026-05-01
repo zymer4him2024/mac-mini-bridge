@@ -126,9 +126,9 @@ def test_unit_mime_extract() -> None:
         + "?= <jihoon@example.com>"
     )
     decoded = decode_header_value(encoded_from)
-    assert (
-        "김지훈" in decoded and "jihoon@example.com" in decoded
-    ), f"rfc2047 utf-8: got {decoded!r}"
+    assert "김지훈" in decoded and "jihoon@example.com" in decoded, (
+        f"rfc2047 utf-8: got {decoded!r}"
+    )
     print("rfc2047 utf-8 from: PASS")
 
     # 7. Plain ASCII subject (no encoding) → passthrough
