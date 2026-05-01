@@ -3,11 +3,18 @@
 import type { FolderItem } from "@shomery/shared-types";
 import { useLocale, useTranslations } from "next-intl";
 
+import { Link } from "@/i18n/routing";
 import { formatRelativeTime } from "@/lib/intl/relative-time";
 
 import { PdfLink } from "./pdf-link";
 
-export function EmailCard({ item }: { item: FolderItem }) {
+export function EmailCard({
+  item,
+  itemId,
+}: {
+  item: FolderItem;
+  itemId?: string;
+}) {
   const t = useTranslations("feed");
   const locale = useLocale();
 
@@ -46,15 +53,23 @@ export function EmailCard({ item }: { item: FolderItem }) {
         </ul>
       ) : null}
 
-      <footer className="mt-4 flex items-center justify-between gap-3">
-        {item.pdfStoragePath && item.pdfFilename ? (
-          <PdfLink
-            storagePath={item.pdfStoragePath}
-            filename={item.pdfFilename}
-          />
-        ) : (
-          <span />
-        )}
+      <footer className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-4">
+          {item.pdfStoragePath && item.pdfFilename ? (
+            <PdfLink
+              storagePath={item.pdfStoragePath}
+              filename={item.pdfFilename}
+            />
+          ) : null}
+          {item.markdownStoragePath && itemId ? (
+            <Link
+              href={`/subjects/${item.folderSlug}/items/${itemId}`}
+              className="text-brand hover:text-brand-hover text-sm"
+            >
+              {t("readFullLabel")}
+            </Link>
+          ) : null}
+        </div>
         {relative ? (
           <time className="text-xs text-soft">{relative}</time>
         ) : null}

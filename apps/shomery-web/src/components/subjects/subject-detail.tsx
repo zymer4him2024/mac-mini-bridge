@@ -105,7 +105,7 @@ export function SubjectDetail({ slug }: { slug: string }) {
         <ul className="space-y-4">
           {items.map(({ id, item }) => (
             <li key={id}>
-              <EmailCard item={item} />
+              <EmailCard item={item} itemId={id} />
             </li>
           ))}
         </ul>

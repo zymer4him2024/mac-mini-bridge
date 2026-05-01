@@ -29,14 +29,23 @@
       "openLabelFor": "Abrir PDF — {filename}",
       "pendingLabel": "📄 {filename}",
       "linkLabel": "📄 {filename} ↗"
-    }
+    },
+    "readFullLabel": "Ler tudo →"
   },
   "subjects": {
     "navEmpty": "Ainda não há assuntos — adicionaremos um quando o seu primeiro e-mail monitorado chegar.",
     "navLoading": "Carregando…",
     "detailEmpty": "Ainda não há itens neste assunto.",
     "detailNotFound": "Assunto não encontrado.",
-    "itemCount": "{count, plural, one {# item} other {# itens}}"
+    "itemCount": "{count, plural, one {# item} other {# itens}}",
+    "backToSubject": "← Voltar ao assunto"
+  },
+  "markdown": {
+    "loading": "Carregando…",
+    "empty": "Este e-mail ainda não tem um resumo em Markdown.",
+    "driveNotReady": "Este resumo está na sua pasta do Drive. O suporte ao Drive chega em breve.",
+    "error": "Não conseguimos carregar este resumo. Tente novamente.",
+    "notFound": "Não conseguimos encontrar este e-mail."
   },
   "settings": {
     "title": "Configurações",
