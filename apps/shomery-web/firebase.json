@@ -9,6 +9,18 @@
         "destination": "/en/",
         "type": 302
       }
+    ],
+    "rewrites": [
+      {
+        "source": "/favicon.ico",
+        "destination": "/icon"
+      }
+    ],
+    "headers": [
+      {
+        "source": "/icon",
+        "headers": [{ "key": "Content-Type", "value": "image/png" }]
+      }
     ]
   },
   "firestore": {
