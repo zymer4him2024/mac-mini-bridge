@@ -150,6 +150,11 @@
     "connect": {
       "title": "받은 편지함이 연결되었습니다.",
       "body": "로그인하신 Google 계정을 사용해 새 메일을 읽어들입니다. 허락 없이 어떤 정보도 외부로 나가지 않습니다.",
+      "pendingTitle": "받은 편지함을 연결하고 있어요.",
+      "pendingBody": "Gmail 모니터링을 설정 중입니다. 첫 번째 요약이 곧 도착할 거예요.",
+      "connectedBadge": "{email} 계정으로 연결됨",
+      "latestSummary": "최근 요약: {when}",
+      "firstSummaryWaiting": "모니터링 중 — 첫 번째 요약이 곧 도착해요.",
       "cta": "계속"
     },
     "watch": {
