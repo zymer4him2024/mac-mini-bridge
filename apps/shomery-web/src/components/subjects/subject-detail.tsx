@@ -10,6 +10,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  where,
 } from "firebase/firestore";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -56,6 +57,7 @@ export function SubjectDetail({ slug }: { slug: string }) {
         getFirebaseDb(),
         `users/${user.uid}/folders/${slug}/items`,
       ),
+      where("uid", "==", user.uid),
       orderBy("createdAt", "desc"),
       limit(ITEMS_LIMIT),
     );
