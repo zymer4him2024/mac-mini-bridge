@@ -11,3 +11,5 @@ firebase-admin>=6.5.0,<7
 pydantic>=2.6.0,<3
 google-cloud-kms>=2.21.0,<4
 PyYAML>=6.0,<7
+fastapi>=0.115.0,<1
+uvicorn[standard]>=0.32.0,<1
