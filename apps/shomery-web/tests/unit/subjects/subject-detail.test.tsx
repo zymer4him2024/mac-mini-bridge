@@ -132,6 +132,16 @@ describe("SubjectDetail", () => {
     expect(screen.getByText("No items in this subject yet.")).toBeInTheDocument();
   });
 
+  it("renders an 'Ask this subject' link to the ask route", () => {
+    render(withIntl(<SubjectDetail slug="acme" />));
+    act(() => {
+      docCallback?.({ exists: () => true, data: () => makeFolder() });
+      collCallback?.({ docs: [] });
+    });
+    const cta = screen.getByRole("link", { name: "Ask this subject" });
+    expect(cta).toHaveAttribute("href", "/en/subjects/acme/ask");
+  });
+
   it("renders one EmailCard per item when the items snapshot has rows", () => {
     render(withIntl(<SubjectDetail slug="acme" />));
     act(() => {

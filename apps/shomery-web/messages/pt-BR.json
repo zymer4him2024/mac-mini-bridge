@@ -42,10 +42,26 @@
     "detailNotFound": "Assunto não encontrado.",
     "itemCount": "{count, plural, one {# item} other {# itens}}",
     "backToSubject": "← Voltar ao assunto",
-    "groupHeading": "Grupos",
-    "ungroupedHeading": "Assuntos",
-    "expandGroup": "Expandir {name}",
-    "collapseGroup": "Recolher {name}"
+    "askCta": "Perguntar sobre este assunto",
+    "ask": {
+      "title": "Perguntar sobre {subject}",
+      "subtitle": "Respondemos apenas com base neste assunto. Recusamos o que não pudermos fundamentar.",
+      "backToSubject": "← Voltar ao assunto",
+      "sourcesHeader": "Fontes",
+      "sourcesEmpty": "Ainda não há itens neste assunto — precisamos de pelo menos um e-mail resumido para responder.",
+      "sourcesItemCount": "{count, plural, one {# fonte} other {# fontes}}",
+      "sourcesNote": "Todos os itens deste assunto são pesquisados. A exclusão por item chega na próxima atualização.",
+      "inputPlaceholder": "Pergunte qualquer coisa sobre este assunto…",
+      "submitAction": "Perguntar",
+      "submitPending": "Pensando…",
+      "replyHeader": "Resposta",
+      "questionHeader": "Pergunta",
+      "loadingHint": "Pesquisando este assunto…",
+      "errorNotConfigured": "A pergunta ainda não está conectada. Defina NEXT_PUBLIC_RAG_BASE_URL no ambiente.",
+      "errorNotSignedIn": "Você precisa estar conectado para perguntar.",
+      "errorGeneric": "Não conseguimos contatar o assistente. Tente novamente.",
+      "metaLabel": "{hits} candidatos · {relevant} relevantes"
+    }
   },
   "markdown": {
     "loading": "Carregando…",

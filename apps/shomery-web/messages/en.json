@@ -42,10 +42,26 @@
     "detailNotFound": "Subject not found.",
     "itemCount": "{count, plural, one {# item} other {# items}}",
     "backToSubject": "← Back to subject",
-    "groupHeading": "Groups",
-    "ungroupedHeading": "Subjects",
-    "expandGroup": "Expand {name}",
-    "collapseGroup": "Collapse {name}"
+    "askCta": "Ask this subject",
+    "ask": {
+      "title": "Ask {subject}",
+      "subtitle": "Grounded in this subject only. We refuse what we can't ground.",
+      "backToSubject": "← Back to subject",
+      "sourcesHeader": "Sources",
+      "sourcesEmpty": "No items in this subject yet — we need at least one summarized email before we can answer.",
+      "sourcesItemCount": "{count, plural, one {# source} other {# sources}}",
+      "sourcesNote": "All items in this subject are searched. Per-item exclusion ships in the next update.",
+      "inputPlaceholder": "Ask anything about this subject…",
+      "submitAction": "Ask",
+      "submitPending": "Thinking…",
+      "replyHeader": "Answer",
+      "questionHeader": "Question",
+      "loadingHint": "Searching this subject…",
+      "errorNotConfigured": "Ask isn't connected yet. Set NEXT_PUBLIC_RAG_BASE_URL in your environment.",
+      "errorNotSignedIn": "You need to be signed in to ask.",
+      "errorGeneric": "We couldn't reach the assistant. Please try again.",
+      "metaLabel": "Found {hits} candidates · {relevant} relevant"
+    }
   },
   "markdown": {
     "loading": "Loading…",
