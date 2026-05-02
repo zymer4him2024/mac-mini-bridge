@@ -18,6 +18,7 @@
   },
   "feed": {
     "title": "Caixa de entrada",
+    "processedSubtitle": "{count, plural, one {# novo e-mail processado · salvo} other {# novos e-mails processados · salvos}} no seu cofre privado.",
     "loading": "Carregando…",
     "empty": "Estamos atentos ao seu primeiro e-mail.",
     "unknownSender": "Remetente desconhecido",

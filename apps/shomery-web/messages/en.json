@@ -18,6 +18,7 @@
   },
   "feed": {
     "title": "Inbox",
+    "processedSubtitle": "{count, plural, one {# new email processed} other {# new emails processed}} · saved to your private vault.",
     "loading": "Loading…",
     "empty": "We're watching for your first email.",
     "unknownSender": "Unknown sender",
