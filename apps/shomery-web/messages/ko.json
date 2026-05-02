@@ -102,6 +102,16 @@
       "toggleOn": "{channel} 켜기",
       "toggleOff": "{channel} 끄기"
     },
+    "whereToSave": {
+      "label": "저장 위치",
+      "helpText": "Shomery가 지금 요약을 어디에 보관하고, 다음에 어떻게 바뀌는지 안내합니다.",
+      "storageLabel": "지금",
+      "storage": "모든 요약은 마크다운 파일로 회원님의 비공개 Shomery 보관함(Firebase Storage)에 저장됩니다. 회원님 외에는 누구도 읽을 수 없습니다.",
+      "pathLabel": "저장 경로",
+      "pathTemplate": "summaries/[내 계정]/[주제]/[메일 ID].md",
+      "driveLabel": "곧 추가됩니다",
+      "drive": "Google Drive 연동은 현재 검토 중입니다. 인증이 완료되면 이 자리에 Drive 폴더 선택 버튼이 나타나고, 새 요약은 회원님의 Drive에 바로 저장됩니다."
+    },
     "privacy": {
       "label": "개인정보 및 데이터",
       "helpText": "내 데이터를 내려받거나 Shomery에서 완전히 삭제할 수 있습니다.",
@@ -148,7 +158,10 @@
     },
     "save": {
       "title": "요약은 어디에 저장될까요.",
-      "body": "지금은 요약이 Shomery 안에 보관됩니다. Drive 인증이 완료되면 선택하신 폴더에 바로 저장해 드릴게요.",
+      "storageLabel": "지금",
+      "storage": "Shomery가 요약하는 모든 메일은 마크다운 파일로 회원님의 비공개 Shomery 보관함(Firebase Storage)에 저장됩니다. 회원님의 계정으로만 접근할 수 있습니다.",
+      "driveLabel": "곧 추가됩니다",
+      "drive": "Google Drive 연동은 현재 검토 중입니다. 인증이 완료되기 전까지는 시스템이 회원님의 Drive에 직접 쓸 수 없습니다. 인증이 완료되면 이 자리에 Drive 폴더 선택 버튼이 나타나고, 새 요약은 회원님의 Drive에 바로 저장됩니다.",
       "completeError": "설정을 완료하지 못했어요. 다시 시도해 주세요.",
       "cta": "추적 시작",
       "ctaPending": "설정 완료 중…"

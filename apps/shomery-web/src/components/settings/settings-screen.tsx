@@ -15,6 +15,7 @@ import {
 } from "./notifications-editor";
 import { PrivacyDataEditor } from "./privacy-data-editor";
 import { WatchedSendersEditor } from "./watched-senders-editor";
+import { WhereToSaveInfo } from "./where-to-save-info";
 
 type ConfigState = "loading" | "ready";
 
@@ -80,6 +81,7 @@ export function SettingsScreen() {
       <div className="space-y-6">
         <WatchedSendersEditor uid={user.uid} initial={watched} />
         <NotificationsEditor uid={user.uid} initial={notifications} />
+        <WhereToSaveInfo />
         <PrivacyDataEditor uid={user.uid} />
       </div>
     </main>

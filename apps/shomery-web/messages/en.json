@@ -102,6 +102,16 @@
       "toggleOn": "Enable {channel}",
       "toggleOff": "Disable {channel}"
     },
+    "whereToSave": {
+      "label": "Where to save",
+      "helpText": "Where Shomery stores your summaries today, and what's next.",
+      "storageLabel": "Today",
+      "storage": "Every summary is saved as a markdown file in your private Shomery vault — Firebase Storage, scoped to your account. Only you can read it.",
+      "pathLabel": "Storage path",
+      "pathTemplate": "summaries/[your account]/[subject]/[email-id].md",
+      "driveLabel": "Coming next",
+      "drive": "Google Drive support is in review. Once verification clears, a Drive folder picker will appear here and new summaries will save straight to your Drive."
+    },
     "privacy": {
       "label": "Privacy & data",
       "helpText": "Take your data with you, or remove it from Shomery for good.",
@@ -148,7 +158,10 @@
     },
     "save": {
       "title": "Where summaries live.",
-      "body": "For now we keep your summaries inside Shomery. Once Drive verification clears, we'll save them straight to your chosen folder.",
+      "storageLabel": "Today",
+      "storage": "Every email Shomery summarizes is saved as a markdown file in your private Shomery vault — Firebase Storage, scoped to your account. Only you can read it.",
+      "driveLabel": "Coming next",
+      "drive": "Google Drive support is in review. Until verification clears, the system can't write to your Drive. Once it does, a Drive folder picker will appear here, and new summaries will save straight to your Drive.",
       "completeError": "We couldn't finish setup. Please try again.",
       "cta": "Start watching",
       "ctaPending": "Finishing setup…"
