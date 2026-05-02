@@ -3,16 +3,11 @@
 import { useEffect, useState } from "react";
 
 import type { FolderItem } from "@shomery/shared-types";
-import {
-  collection,
-  limit,
-  onSnapshot,
-  orderBy,
-  query,
-} from "firebase/firestore";
+import { collection, limit, orderBy, query, where } from "firebase/firestore";
 import { useTranslations } from "next-intl";
 
 import { getFirebaseDb } from "@/lib/firebase/client";
+import { subscribeWithRetry } from "@/lib/firebase/subscribe";
 import { useAuth } from "@/lib/firebase/auth";
 
 const SOURCES_LIMIT = 50;
@@ -35,15 +30,15 @@ export function SourcesPanel({ slug }: { slug: string }) {
         getFirebaseDb(),
         `users/${user.uid}/folders/${slug}/items`,
       ),
+      where("uid", "==", user.uid),
       orderBy("createdAt", "desc"),
       limit(SOURCES_LIMIT),
     );
-    const unsub = onSnapshot(q, (snap) => {
+    return subscribeWithRetry(q, (snap) => {
       setItems(
         snap.docs.map((d) => ({ id: d.id, item: d.data() as FolderItem })),
       );
     });
-    return unsub;
   }, [status, user, slug]);
 
   return (

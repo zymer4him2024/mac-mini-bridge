@@ -38,6 +38,9 @@
   "subjects": {
     "navEmpty": "아직 주제가 없습니다 — 첫 번째 추적 이메일이 도착하면 추가할게요.",
     "navLoading": "불러오는 중…",
+    "expandGroup": "{name} 펼치기",
+    "collapseGroup": "{name} 접기",
+    "ungroupedHeading": "주제",
     "detailEmpty": "이 주제에는 아직 항목이 없습니다.",
     "detailNotFound": "주제를 찾을 수 없습니다.",
     "itemCount": "{count, plural, other {항목 #개}}",
@@ -73,6 +76,17 @@
   "settings": {
     "title": "설정",
     "loading": "불러오는 중…",
+    "inbox": {
+      "label": "받은 편지함",
+      "helpText": "Shomery가 어떤 메일함에서 읽고 있는지, 마지막 요약이 언제 도착했는지 보여드려요.",
+      "connectedLabel": "Gmail",
+      "connectedAs": "{email} 계정으로 연결됨",
+      "latestSummaryLabel": "최근 요약",
+      "latestSummary": "{when}",
+      "firstSummaryWaiting": "모니터링 중 — 첫 번째 요약이 곧 도착해요.",
+      "pendingLabel": "설정 중",
+      "pendingBody": "회원님 계정의 Gmail 모니터링을 설정하고 있어요. 연결되면 여기에 보낸 사람이 표시됩니다."
+    },
     "watchedSenders": {
       "label": "추적할 보낸 사람",
       "helpText": "여기에 추가한 보낸 사람 또는 도메인의 이메일을 요약합니다. 전체 이메일 주소(alice@example.com) 또는 도메인(@acme.com)을 사용하세요.",
@@ -124,6 +138,16 @@
       },
       "toggleOn": "{channel} 켜기",
       "toggleOff": "{channel} 끄기"
+    },
+    "whereToSave": {
+      "label": "저장 위치",
+      "helpText": "Shomery가 지금 요약을 어디에 보관하고, 다음에 어떻게 바뀌는지 안내합니다.",
+      "storageLabel": "지금",
+      "storage": "모든 요약은 마크다운 파일로 회원님의 비공개 Shomery 보관함(Firebase Storage)에 저장됩니다. 회원님 외에는 누구도 읽을 수 없습니다.",
+      "pathLabel": "저장 경로",
+      "pathTemplate": "summaries/[내 계정]/[주제]/[메일 ID].md",
+      "driveLabel": "곧 추가됩니다",
+      "drive": "Google Drive 연동은 현재 검토 중입니다. 인증이 완료되면 이 자리에 Drive 폴더 선택 버튼이 나타나고, 새 요약은 회원님의 Drive에 바로 저장됩니다."
     },
     "groups": {
       "label": "주제 그룹",

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import type { Folder, Group } from "@shomery/shared-types";
 import { collection, limit, orderBy, query } from "firebase/firestore";
+import { Folder as FolderIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Link, usePathname } from "@/i18n/routing";

@@ -100,6 +100,14 @@ vi.mock("@/components/settings/groups-editor", () => ({
   ),
 }));
 
+vi.mock("@/components/settings/inbox-status-info", () => ({
+  InboxStatusInfo: () => <div data-testid="inbox-status-info" />,
+}));
+
+vi.mock("@/components/settings/where-to-save-info", () => ({
+  WhereToSaveInfo: () => <div data-testid="where-to-save-info" />,
+}));
+
 import { SettingsScreen } from "@/components/settings/settings-screen";
 
 function withIntl(node: ReactNode) {
