@@ -150,7 +150,11 @@
     "connect": {
       "title": "Your inbox is connected.",
       "body": "We use the Google account you signed in with to read emails as they arrive. Nothing leaves your account uninvited.",
+      "pendingTitle": "Setting up your inbox.",
+      "pendingBody": "We're connecting Gmail watching for your account. Your first summary will land here shortly.",
       "connectedBadge": "Connected as {email}",
+      "latestSummary": "Latest summary {when}.",
+      "firstSummaryWaiting": "Watching — your first summary will land here soon.",
       "cta": "Continue"
     },
     "watch": {

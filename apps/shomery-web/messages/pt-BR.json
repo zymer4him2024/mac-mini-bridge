@@ -150,7 +150,11 @@
     "connect": {
       "title": "Sua caixa de entrada está conectada.",
       "body": "Usamos a conta Google com a qual você entrou para ler e-mails à medida que chegam. Nada sai da sua conta sem permissão.",
+      "pendingTitle": "Conectando sua caixa de entrada.",
+      "pendingBody": "Estamos configurando o monitoramento do Gmail para a sua conta. Seu primeiro resumo chega já já.",
       "connectedBadge": "Conectado como {email}",
+      "latestSummary": "Último resumo {when}.",
+      "firstSummaryWaiting": "Monitorando — seu primeiro resumo chega em breve.",
       "cta": "Continuar"
     },
     "watch": {
