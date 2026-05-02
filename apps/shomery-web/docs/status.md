@@ -18,7 +18,8 @@ The page is reachable from the sidebar's Settings link.
 
 - **Watched senders** — live. Writes `priorityWatchSenders` on `users/{uid}/config/main`.
 - **Notifications** — live. Writes `digestEnabled`, `telegramEnabled`, `telegramChatId` on the same doc (rules allow that exact allowlist). Five channel rows render; only **Email digest** and **Telegram** are interactive in v1. KakaoTalk, WhatsApp, SMS render as disabled rows with a *Coming soon* badge.
-- **Privacy & data** — live. **Export** reads identity + config + folders + items via the client SDK and downloads a JSON file (no Cloud Function needed). **Delete account** calls the `deleteAccount` Cloud Function (admin SDK), which recursive-deletes Firestore under `users/{uid}/**`, deletes Storage prefixes `summaries/{uid}/` and `pdfs/{uid}/`, and removes the Auth user.
+- **Privacy & data** — live. **Export** reads identity + config + folders + items via the client SDK and downloads a JSON file (no Cloud Function needed). **Delete account** calls the `deleteAccount` Cloud Function (admin SDK), which recursive-deletes Firestore under `users/{uid}/**` (groups included), deletes Storage prefixes `summaries/{uid}/` and `pdfs/{uid}/`, and removes the Auth user.
+- **Subject groups** — live. Bundles related subjects under a parent name. Create / rename / edit members / delete write to `users/{uid}/groups/{groupId}`. The "subject in zero or one groups" invariant is enforced client-side via a batched cross-group write in the `useGroups` hook (Firestore rules can't express it). Sidebar renders groups as collapsible parents above ungrouped subjects. Per-group Ask scoping ships with the Ask UI PR.
 - **Inbox** — ships in a dedicated PR.
 - **Where to save** — ships in a dedicated PR (gated on Drive OAuth verification).
 
@@ -32,7 +33,7 @@ Live for browse. Selecting a subject opens a per-folder detail page. The per-ite
 
 The watcher does not yet emit `.md` blobs in production, so this path is exercised against fixtures in tests and renders an empty state for items without a `markdownStoragePath`.
 
-**Deferred to dedicated PRs:** virtual groups, "+ New group" combine flow, "Ask this subject" Sources + scoped chat split (NotebookLM mode).
+**Deferred to dedicated PRs:** "Ask this subject" Sources + scoped chat split (NotebookLM mode).
 
 ## Ask
 

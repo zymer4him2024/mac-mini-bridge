@@ -599,4 +599,173 @@ describeIf("Firestore security rules — Shomery", () => {
       );
     });
   });
+
+  describe("groups — users/{uid}/groups/{groupId}", () => {
+    const validGroup = (overrides: Record<string, unknown> = {}) => ({
+      groupId: "g1",
+      name: "Acme",
+      subjectSlugs: ["acme-emails", "acme-invoices"],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      ...overrides,
+    });
+
+    it("allows owner to create a group with allowlisted keys", async () => {
+      const { assertSucceeds } = await import("@firebase/rules-unit-testing");
+      const { setDoc, doc } = await import("firebase/firestore");
+
+      const alice = testEnv.authenticatedContext("alice").firestore();
+      await assertSucceeds(
+        setDoc(doc(alice, "users/alice/groups/g1"), validGroup()),
+      );
+    });
+
+    it("allows owner to read their own group", async () => {
+      const { assertSucceeds } = await import("@firebase/rules-unit-testing");
+      const { setDoc, getDoc, doc } = await import("firebase/firestore");
+
+      const alice = testEnv.authenticatedContext("alice").firestore();
+      await setDoc(doc(alice, "users/alice/groups/g1"), validGroup());
+      await assertSucceeds(getDoc(doc(alice, "users/alice/groups/g1")));
+    });
+
+    it("allows owner to update name and subjectSlugs", async () => {
+      const { assertSucceeds } = await import("@firebase/rules-unit-testing");
+      const { setDoc, updateDoc, doc } = await import("firebase/firestore");
+
+      const alice = testEnv.authenticatedContext("alice").firestore();
+      await setDoc(doc(alice, "users/alice/groups/g1"), validGroup());
+      await assertSucceeds(
+        updateDoc(doc(alice, "users/alice/groups/g1"), {
+          name: "Acme Renamed",
+          subjectSlugs: ["acme-emails"],
+          updatedAt: new Date(),
+        }),
+      );
+    });
+
+    it("allows owner to delete a group", async () => {
+      const { assertSucceeds } = await import("@firebase/rules-unit-testing");
+      const { setDoc, deleteDoc, doc } = await import("firebase/firestore");
+
+      const alice = testEnv.authenticatedContext("alice").firestore();
+      await setDoc(doc(alice, "users/alice/groups/g1"), validGroup());
+      await assertSucceeds(deleteDoc(doc(alice, "users/alice/groups/g1")));
+    });
+
+    it("denies a foreign uid from reading another user's group", async () => {
+      const { assertFails } = await import("@firebase/rules-unit-testing");
+      const { setDoc, getDoc, doc } = await import("firebase/firestore");
+
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(
+          doc(ctx.firestore(), "users/alice/groups/g1"),
+          validGroup(),
+        );
+      });
+      const bob = testEnv.authenticatedContext("bob").firestore();
+      await assertFails(getDoc(doc(bob, "users/alice/groups/g1")));
+    });
+
+    it("denies a foreign uid from creating in another user's groups", async () => {
+      const { assertFails } = await import("@firebase/rules-unit-testing");
+      const { setDoc, doc } = await import("firebase/firestore");
+
+      const bob = testEnv.authenticatedContext("bob").firestore();
+      await assertFails(
+        setDoc(doc(bob, "users/alice/groups/g1"), validGroup()),
+      );
+    });
+
+    it("denies a foreign uid from deleting another user's group", async () => {
+      const { assertFails } = await import("@firebase/rules-unit-testing");
+      const { setDoc, deleteDoc, doc } = await import("firebase/firestore");
+
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(
+          doc(ctx.firestore(), "users/alice/groups/g1"),
+          validGroup(),
+        );
+      });
+      const bob = testEnv.authenticatedContext("bob").firestore();
+      await assertFails(deleteDoc(doc(bob, "users/alice/groups/g1")));
+    });
+
+    it("denies an empty group name", async () => {
+      const { assertFails } = await import("@firebase/rules-unit-testing");
+      const { setDoc, doc } = await import("firebase/firestore");
+
+      const alice = testEnv.authenticatedContext("alice").firestore();
+      await assertFails(
+        setDoc(doc(alice, "users/alice/groups/g1"), validGroup({ name: "" })),
+      );
+    });
+
+    it("denies a group name longer than 50 characters", async () => {
+      const { assertFails } = await import("@firebase/rules-unit-testing");
+      const { setDoc, doc } = await import("firebase/firestore");
+
+      const alice = testEnv.authenticatedContext("alice").firestore();
+      await assertFails(
+        setDoc(
+          doc(alice, "users/alice/groups/g1"),
+          validGroup({ name: "x".repeat(51) }),
+        ),
+      );
+    });
+
+    it("denies subjectSlugs that is not a list", async () => {
+      const { assertFails } = await import("@firebase/rules-unit-testing");
+      const { setDoc, doc } = await import("firebase/firestore");
+
+      const alice = testEnv.authenticatedContext("alice").firestore();
+      await assertFails(
+        setDoc(
+          doc(alice, "users/alice/groups/g1"),
+          validGroup({ subjectSlugs: "acme-emails" }),
+        ),
+      );
+    });
+
+    it("denies subjectSlugs longer than 100 entries", async () => {
+      const { assertFails } = await import("@firebase/rules-unit-testing");
+      const { setDoc, doc } = await import("firebase/firestore");
+
+      const oversize = Array.from({ length: 101 }, (_, i) => `slug-${i}`);
+      const alice = testEnv.authenticatedContext("alice").firestore();
+      await assertFails(
+        setDoc(
+          doc(alice, "users/alice/groups/g1"),
+          validGroup({ subjectSlugs: oversize }),
+        ),
+      );
+    });
+
+    it("denies create with a non-allowlisted key", async () => {
+      const { assertFails } = await import("@firebase/rules-unit-testing");
+      const { setDoc, doc } = await import("firebase/firestore");
+
+      const alice = testEnv.authenticatedContext("alice").firestore();
+      await assertFails(
+        setDoc(doc(alice, "users/alice/groups/g1"), {
+          ...validGroup(),
+          secret: "leaked",
+        }),
+      );
+    });
+
+    it("denies update that introduces a non-allowlisted key", async () => {
+      const { assertFails } = await import("@firebase/rules-unit-testing");
+      const { setDoc, updateDoc, doc } = await import("firebase/firestore");
+
+      const alice = testEnv.authenticatedContext("alice").firestore();
+      await setDoc(doc(alice, "users/alice/groups/g1"), validGroup());
+      await assertFails(
+        updateDoc(doc(alice, "users/alice/groups/g1"), {
+          name: "OK",
+          secret: "leaked",
+        }),
+      );
+    });
+  });
 });

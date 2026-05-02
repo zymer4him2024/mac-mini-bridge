@@ -52,6 +52,26 @@ export interface FolderItem {
 }
 
 /**
+ * users/{uid}/groups/{groupId} — a virtual subject group.
+ *
+ * Groups are membership records, not folders. Adding or removing a subject is
+ * a single field update; emails never move. Ungrouping is risk-free —
+ * children pop back out as standalone subjects with no data lost. Per the
+ * v1 product contract a subject belongs to at most one group; the client
+ * enforces that invariant on edit by stripping the slug from any other
+ * group's `subjectSlugs[]` in the same batched write.
+ */
+export interface Group {
+  /** Stable ID; matches the Firestore doc ID. Generated client-side via crypto.randomUUID(). */
+  groupId: string;
+  name: string;
+  /** Subject slugs that belong to this group. */
+  subjectSlugs: string[];
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+/**
  * users/{uid} — top-level identity doc.
  *
  * The web client owns the identity-only fields (email, displayName, photoURL,

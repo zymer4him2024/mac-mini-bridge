@@ -2,13 +2,22 @@
 
 import { useEffect, useState } from "react";
 
-import type { UserConfig } from "@shomery/shared-types";
-import { doc, onSnapshot } from "firebase/firestore";
+import type { Folder, UserConfig } from "@shomery/shared-types";
+import {
+  collection,
+  doc,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+} from "firebase/firestore";
 import { useTranslations } from "next-intl";
 
 import { getFirebaseDb } from "@/lib/firebase/client";
+import { subscribeWithRetry } from "@/lib/firebase/subscribe";
 import { useAuth } from "@/lib/firebase/auth";
 
+import { GroupsEditor } from "./groups-editor";
 import {
   NotificationsEditor,
   type NotificationsValue,
@@ -16,6 +25,8 @@ import {
 import { PrivacyDataEditor } from "./privacy-data-editor";
 import { WatchedSendersEditor } from "./watched-senders-editor";
 import { WhereToSaveInfo } from "./where-to-save-info";
+
+const FOLDERS_LIMIT = 100;
 
 type ConfigState = "loading" | "ready";
 
@@ -33,6 +44,19 @@ export function SettingsScreen() {
   const [notifications, setNotifications] = useState<NotificationsValue>(
     DEFAULT_NOTIFICATIONS,
   );
+  const [folders, setFolders] = useState<Folder[]>([]);
+
+  useEffect(() => {
+    if (status !== "signed-in" || !user) return;
+    const q = query(
+      collection(getFirebaseDb(), `users/${user.uid}/folders`),
+      orderBy("updatedAt", "desc"),
+      limit(FOLDERS_LIMIT),
+    );
+    return subscribeWithRetry(q, (snap) => {
+      setFolders(snap.docs.map((d) => d.data() as Folder));
+    });
+  }, [status, user]);
 
   useEffect(() => {
     if (status !== "signed-in" || !user) return;
@@ -81,7 +105,7 @@ export function SettingsScreen() {
       <div className="space-y-6">
         <WatchedSendersEditor uid={user.uid} initial={watched} />
         <NotificationsEditor uid={user.uid} initial={notifications} />
-        <WhereToSaveInfo />
+        <GroupsEditor uid={user.uid} folders={folders} />
         <PrivacyDataEditor uid={user.uid} />
       </div>
     </main>

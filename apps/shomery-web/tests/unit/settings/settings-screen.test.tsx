@@ -11,7 +11,14 @@ type DocSnapshotCallback = (snap: {
   data: () => Record<string, unknown>;
 }) => void;
 
+type QuerySnapshotCallback = (snap: {
+  docs: { id: string; data: () => Record<string, unknown> }[];
+}) => void;
+
 let lastCallback: DocSnapshotCallback | null = null;
+
+const isDocRef = (ref: unknown): boolean =>
+  Boolean(ref && typeof ref === "object" && (ref as { __doc?: boolean }).__doc);
 
 vi.mock("firebase/firestore", async () => {
   const actual = await vi.importActual<typeof import("firebase/firestore")>(
@@ -19,9 +26,18 @@ vi.mock("firebase/firestore", async () => {
   );
   return {
     ...actual,
-    doc: () => ({}),
-    onSnapshot: (_ref: unknown, cb: DocSnapshotCallback) => {
-      lastCallback = cb;
+    doc: () => ({ __doc: true }),
+    collection: () => ({ __collection: true }),
+    query: () => ({ __query: true }),
+    orderBy: () => ({}),
+    limit: () => ({}),
+    onSnapshot: (
+      ref: unknown,
+      cb: DocSnapshotCallback | QuerySnapshotCallback,
+    ) => {
+      if (isDocRef(ref)) {
+        lastCallback = cb as DocSnapshotCallback;
+      }
       return vi.fn();
     },
   };
@@ -75,6 +91,12 @@ vi.mock("@/components/settings/notifications-editor", () => ({
 vi.mock("@/components/settings/privacy-data-editor", () => ({
   PrivacyDataEditor: ({ uid }: { uid: string }) => (
     <div data-testid="privacy-data-editor" data-uid={uid} />
+  ),
+}));
+
+vi.mock("@/components/settings/groups-editor", () => ({
+  GroupsEditor: ({ uid }: { uid: string }) => (
+    <div data-testid="groups-editor" data-uid={uid} />
   ),
 }));
 
