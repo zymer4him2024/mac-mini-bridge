@@ -35,5 +35,16 @@ export default function AppGroupLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  return <AppShell uid={user.uid}>{children}</AppShell>;
+  return (
+    <AppShell
+      user={{
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        photoURL: user.photoURL,
+      }}
+    >
+      {children}
+    </AppShell>
+  );
 }

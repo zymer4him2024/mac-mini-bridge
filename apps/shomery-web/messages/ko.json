@@ -8,6 +8,9 @@
     "microcopy": "카드 등록 없음. 2분이면 설정 완료. 데이터는 본인의 Drive에 보관됩니다."
   },
   "nav": {
+    "brand": "Shomery",
+    "brandMonogram": "S",
+    "brandHome": "Shomery 홈",
     "inbox": "받은 편지함",
     "subjectsHeader": "주제",
     "settings": "설정",
@@ -164,6 +167,11 @@
     "connect": {
       "title": "받은 편지함이 연결되었습니다.",
       "body": "로그인하신 Google 계정을 사용해 새 메일을 읽어들입니다. 허락 없이 어떤 정보도 외부로 나가지 않습니다.",
+      "pendingTitle": "받은 편지함을 연결하고 있어요.",
+      "pendingBody": "Gmail 모니터링을 설정 중입니다. 첫 번째 요약이 곧 도착할 거예요.",
+      "connectedBadge": "{email} 계정으로 연결됨",
+      "latestSummary": "최근 요약: {when}",
+      "firstSummaryWaiting": "모니터링 중 — 첫 번째 요약이 곧 도착해요.",
       "cta": "계속"
     },
     "watch": {
@@ -175,7 +183,10 @@
     },
     "save": {
       "title": "요약은 어디에 저장될까요.",
-      "body": "지금은 요약이 Shomery 안에 보관됩니다. Drive 인증이 완료되면 선택하신 폴더에 바로 저장해 드릴게요.",
+      "storageLabel": "지금",
+      "storage": "Shomery가 요약하는 모든 메일은 마크다운 파일로 회원님의 비공개 Shomery 보관함(Firebase Storage)에 저장됩니다. 회원님의 계정으로만 접근할 수 있습니다.",
+      "driveLabel": "곧 추가됩니다",
+      "drive": "Google Drive 연동은 현재 검토 중입니다. 인증이 완료되기 전까지는 시스템이 회원님의 Drive에 직접 쓸 수 없습니다. 인증이 완료되면 이 자리에 Drive 폴더 선택 버튼이 나타나고, 새 요약은 회원님의 Drive에 바로 저장됩니다.",
       "completeError": "설정을 완료하지 못했어요. 다시 시도해 주세요.",
       "cta": "추적 시작",
       "ctaPending": "설정 완료 중…"

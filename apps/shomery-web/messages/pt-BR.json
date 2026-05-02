@@ -8,6 +8,9 @@
     "microcopy": "Sem cartão. Configuração em 2 minutos. Seus dados ficam no seu Drive."
   },
   "nav": {
+    "brand": "Shomery",
+    "brandMonogram": "S",
+    "brandHome": "Início do Shomery",
     "inbox": "Caixa de entrada",
     "subjectsHeader": "Assuntos",
     "settings": "Configurações",
@@ -164,6 +167,11 @@
     "connect": {
       "title": "Sua caixa de entrada está conectada.",
       "body": "Usamos a conta Google com a qual você entrou para ler e-mails à medida que chegam. Nada sai da sua conta sem permissão.",
+      "pendingTitle": "Conectando sua caixa de entrada.",
+      "pendingBody": "Estamos configurando o monitoramento do Gmail para a sua conta. Seu primeiro resumo chega já já.",
+      "connectedBadge": "Conectado como {email}",
+      "latestSummary": "Último resumo {when}.",
+      "firstSummaryWaiting": "Monitorando — seu primeiro resumo chega em breve.",
       "cta": "Continuar"
     },
     "watch": {
@@ -175,7 +183,10 @@
     },
     "save": {
       "title": "Onde os resumos ficam.",
-      "body": "Por enquanto guardamos seus resumos dentro do Shomery. Assim que a verificação do Drive for concluída, vamos salvar direto na pasta que você escolher.",
+      "storageLabel": "Hoje",
+      "storage": "Cada e-mail que o Shomery resume é salvo como um arquivo markdown no seu cofre privado do Shomery — Firebase Storage, restrito à sua conta. Só você pode ler.",
+      "driveLabel": "Em breve",
+      "drive": "A integração com o Google Drive está em análise. Até a verificação ser concluída, o sistema não pode escrever no seu Drive. Quando concluir, um seletor de pasta do Drive aparecerá aqui e os novos resumos serão salvos direto no seu Drive.",
       "completeError": "Não conseguimos finalizar a configuração. Tente novamente.",
       "cta": "Começar a monitorar",
       "ctaPending": "Finalizando…"

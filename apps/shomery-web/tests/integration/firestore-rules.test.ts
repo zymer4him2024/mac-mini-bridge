@@ -242,6 +242,93 @@ describeIf("Firestore security rules — Shomery", () => {
       );
     });
 
+    it("allows owner's collection-group query for the Feed", async () => {
+      const { assertSucceeds } = await import("@firebase/rules-unit-testing");
+      const {
+        setDoc,
+        doc,
+        getDocs,
+        collectionGroup,
+        query,
+        where,
+        orderBy,
+        limit,
+        serverTimestamp,
+      } = await import("firebase/firestore");
+
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(
+          doc(ctx.firestore(), "users/alice/folders/acme/items/feed-q-1"),
+          {
+            uid: "alice",
+            folderSubject: "Acme",
+            folderSlug: "acme",
+            date: "2024-12-15",
+            from: "Acme <a@example.com>",
+            urgency: "low",
+            keyPoints: [],
+            asks: [],
+            suggestedResponse: "",
+            pdfFilename: "x.pdf",
+            createdAt: serverTimestamp(),
+          },
+        );
+      });
+
+      const alice = testEnv.authenticatedContext("alice").firestore();
+      // Mirrors apps/shomery-web/src/components/feed/feed-list.tsx exactly.
+      const q = query(
+        collectionGroup(alice, "items"),
+        where("uid", "==", "alice"),
+        orderBy("createdAt", "desc"),
+        limit(50),
+      );
+      await assertSucceeds(getDocs(q));
+    });
+
+    it("denies a foreign uid's collection-group query against another user's data", async () => {
+      const { assertFails } = await import("@firebase/rules-unit-testing");
+      const {
+        setDoc,
+        doc,
+        getDocs,
+        collectionGroup,
+        query,
+        where,
+        orderBy,
+        limit,
+        serverTimestamp,
+      } = await import("firebase/firestore");
+
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(
+          doc(ctx.firestore(), "users/alice/folders/acme/items/foreign-q"),
+          {
+            uid: "alice",
+            folderSubject: "Acme",
+            folderSlug: "acme",
+            date: "",
+            from: "",
+            urgency: "low",
+            keyPoints: [],
+            asks: [],
+            suggestedResponse: "",
+            pdfFilename: "",
+            createdAt: serverTimestamp(),
+          },
+        );
+      });
+
+      const bob = testEnv.authenticatedContext("bob").firestore();
+      const q = query(
+        collectionGroup(bob, "items"),
+        where("uid", "==", "alice"),
+        orderBy("createdAt", "desc"),
+        limit(50),
+      );
+      await assertFails(getDocs(q));
+    });
+
     it("denies any client write to an item", async () => {
       const { assertFails } = await import("@firebase/rules-unit-testing");
       const { setDoc, doc, serverTimestamp } = await import(

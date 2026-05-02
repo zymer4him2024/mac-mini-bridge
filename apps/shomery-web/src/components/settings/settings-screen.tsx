@@ -24,6 +24,7 @@ import {
 } from "./notifications-editor";
 import { PrivacyDataEditor } from "./privacy-data-editor";
 import { WatchedSendersEditor } from "./watched-senders-editor";
+import { WhereToSaveInfo } from "./where-to-save-info";
 
 const FOLDERS_LIMIT = 100;
 

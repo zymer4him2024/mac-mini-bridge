@@ -33,12 +33,17 @@ export interface AuthState {
   status: AuthStatus;
   // null while the users/{uid} doc subscription is loading or status !== "signed-in"
   onboardingCompleted: boolean | null;
+  // gmail.email written by the Python pipeline (admin SDK) once Gmail is wired
+  // for this user. null until the snapshot resolves, then null if the operator
+  // hasn't run the Gmail-connect flow yet.
+  gmailEmail: string | null;
 }
 
 const AuthContext = createContext<AuthState>({
   user: null,
   status: "loading",
   onboardingCompleted: null,
+  gmailEmail: null,
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -46,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user: null,
     status: "loading",
     onboardingCompleted: null,
+    gmailEmail: null,
   });
 
   useEffect(() => {
@@ -56,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           user,
           status: user ? "signed-in" : "signed-out",
           onboardingCompleted: null,
+          gmailEmail: null,
         });
       });
     } catch (err) {
@@ -64,6 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: null,
         status: "signed-out",
         onboardingCompleted: null,
+        gmailEmail: null,
       });
     }
     return () => unsubscribe?.();
@@ -84,12 +92,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         unsub = onSnapshot(
           ref,
           (snap) => {
-            const completed = Boolean(
-              snap.exists() && snap.data()?.onboardingCompletedAt,
-            );
+            const data = snap.exists() ? snap.data() : undefined;
+            const completed = Boolean(data?.onboardingCompletedAt);
+            const gmail = (data?.gmail as { email?: string } | undefined)
+              ?.email;
+            const gmailEmail =
+              typeof gmail === "string" && gmail.length > 0 ? gmail : null;
             setState((prev) =>
               prev.user?.uid === uid
-                ? { ...prev, onboardingCompleted: completed }
+                ? { ...prev, onboardingCompleted: completed, gmailEmail }
                 : prev,
             );
           },

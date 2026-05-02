@@ -8,6 +8,9 @@
     "microcopy": "No card required. 2-minute setup. Your data stays in your Drive."
   },
   "nav": {
+    "brand": "Shomery",
+    "brandMonogram": "S",
+    "brandHome": "Shomery home",
     "inbox": "Inbox",
     "subjectsHeader": "Subjects",
     "settings": "Settings",
@@ -164,6 +167,11 @@
     "connect": {
       "title": "Your inbox is connected.",
       "body": "We use the Google account you signed in with to read emails as they arrive. Nothing leaves your account uninvited.",
+      "pendingTitle": "Setting up your inbox.",
+      "pendingBody": "We're connecting Gmail watching for your account. Your first summary will land here shortly.",
+      "connectedBadge": "Connected as {email}",
+      "latestSummary": "Latest summary {when}.",
+      "firstSummaryWaiting": "Watching — your first summary will land here soon.",
       "cta": "Continue"
     },
     "watch": {
@@ -175,7 +183,10 @@
     },
     "save": {
       "title": "Where summaries live.",
-      "body": "For now we keep your summaries inside Shomery. Once Drive verification clears, we'll save them straight to your chosen folder.",
+      "storageLabel": "Today",
+      "storage": "Every email Shomery summarizes is saved as a markdown file in your private Shomery vault — Firebase Storage, scoped to your account. Only you can read it.",
+      "driveLabel": "Coming next",
+      "drive": "Google Drive support is in review. Until verification clears, the system can't write to your Drive. Once it does, a Drive folder picker will appear here, and new summaries will save straight to your Drive.",
       "completeError": "We couldn't finish setup. Please try again.",
       "cta": "Start watching",
       "ctaPending": "Finishing setup…"

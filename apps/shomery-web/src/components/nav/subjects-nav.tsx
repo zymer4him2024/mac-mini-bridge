@@ -61,7 +61,12 @@ export function SubjectsNav({ uid }: { uid: string }) {
   }
 
   if (rows.length === 0) {
-    return <p className="text-sm text-soft">{t("navEmpty")}</p>;
+    return (
+      <div className="flex items-start gap-2 rounded-md px-3 py-2 text-sm text-soft">
+        <FolderIcon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+        <p className="leading-snug">{t("navEmpty")}</p>
+      </div>
+    );
   }
 
   return (

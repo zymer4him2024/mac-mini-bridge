@@ -18,8 +18,14 @@ vi.mock("@/lib/firebase/auth", () => ({
 }));
 
 vi.mock("@/components/nav/app-shell", () => ({
-  AppShell: ({ uid, children }: { uid: string; children: ReactNode }) => (
-    <div data-testid="app-shell" data-uid={uid}>
+  AppShell: ({
+    user,
+    children,
+  }: {
+    user: { uid: string };
+    children: ReactNode;
+  }) => (
+    <div data-testid="app-shell" data-uid={user.uid}>
       {children}
     </div>
   ),

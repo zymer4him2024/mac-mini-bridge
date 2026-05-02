@@ -92,18 +92,6 @@ service cloud.firestore {
       match /folders/{slug} {
         allow read: if isOwnerByPath(uid);
         allow write: if false; // Python pipeline writes via admin SDK.
-
-        match /items/{itemId} {
-          // Two read pathways:
-          //  - Path-scoped list/get under /users/{uid}/folders/{slug}/items
-          //    (Subject Detail). Path uid already proves ownership.
-          //  - Collection-group query on /items (Feed). The path uid binding
-          //    is unavailable, so we fall back to gating on the doc's uid.
-          allow read: if isOwnerByPath(uid)
-            || (request.auth != null
-                && request.auth.uid == resource.data.uid);
-          allow write: if false;
-        }
       }
 
       match /secrets/{secretId} {
@@ -133,6 +121,20 @@ service cloud.firestore {
 
         allow delete: if isOwnerByPath(uid);
       }
+    }
+
+    // Folder items: hoisted to a top-level recursive match so the rule is
+    // eligible for collection-group queries (the Feed). The rule expression
+    // does not reference any path variable — Firestore requires that for
+    // collection-group eligibility — and gates ownership on the doc's
+    // denormalized `uid`, which the Python pipeline writes on every item.
+    // Subject Detail single-doc reads under
+    //   /users/{uid}/folders/{slug}/items/{itemId}
+    // also flow through this rule and are owner-gated by the same check.
+    match /{path=**}/items/{itemId} {
+      allow read: if request.auth != null
+        && request.auth.uid == resource.data.uid;
+      allow write: if false; // Python pipeline writes via admin SDK.
     }
 
     match /{document=**} {
