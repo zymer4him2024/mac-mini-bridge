@@ -329,7 +329,7 @@ describeIf("Firestore security rules — Shomery", () => {
       await assertFails(getDocs(q));
     });
 
-    it("denies any client write to an item", async () => {
+    it("denies any client write to create an item from scratch", async () => {
       const { assertFails } = await import("@firebase/rules-unit-testing");
       const { setDoc, doc, serverTimestamp } = await import(
         "firebase/firestore"
@@ -353,6 +353,192 @@ describeIf("Firestore security rules — Shomery", () => {
             createdAt: serverTimestamp(),
           },
         ),
+      );
+    });
+
+    it("allows owner to set readAt on their own item", async () => {
+      const { assertSucceeds } = await import("@firebase/rules-unit-testing");
+      const { setDoc, updateDoc, doc, serverTimestamp } = await import(
+        "firebase/firestore"
+      );
+
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(
+          doc(ctx.firestore(), "users/alice/folders/acme/items/markread-1"),
+          {
+            uid: "alice",
+            folderSubject: "Acme",
+            folderSlug: "acme",
+            date: "",
+            from: "",
+            urgency: "low",
+            keyPoints: [],
+            asks: [],
+            suggestedResponse: "",
+            pdfFilename: "",
+            createdAt: serverTimestamp(),
+          },
+        );
+      });
+
+      const alice = testEnv.authenticatedContext("alice").firestore();
+      await assertSucceeds(
+        updateDoc(
+          doc(alice, "users/alice/folders/acme/items/markread-1"),
+          { readAt: serverTimestamp() },
+        ),
+      );
+    });
+
+    it("denies an item update that touches a field other than readAt", async () => {
+      const { assertFails } = await import("@firebase/rules-unit-testing");
+      const { setDoc, updateDoc, doc, serverTimestamp } = await import(
+        "firebase/firestore"
+      );
+
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(
+          doc(ctx.firestore(), "users/alice/folders/acme/items/markread-2"),
+          {
+            uid: "alice",
+            folderSubject: "Acme",
+            folderSlug: "acme",
+            date: "",
+            from: "",
+            urgency: "low",
+            keyPoints: [],
+            asks: [],
+            suggestedResponse: "",
+            pdfFilename: "",
+            createdAt: serverTimestamp(),
+          },
+        );
+      });
+
+      const alice = testEnv.authenticatedContext("alice").firestore();
+      await assertFails(
+        updateDoc(
+          doc(alice, "users/alice/folders/acme/items/markread-2"),
+          { urgency: "high" },
+        ),
+      );
+    });
+
+    it("denies a foreign uid from setting readAt on another user's item", async () => {
+      const { assertFails } = await import("@firebase/rules-unit-testing");
+      const { setDoc, updateDoc, doc, serverTimestamp } = await import(
+        "firebase/firestore"
+      );
+
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(
+          doc(ctx.firestore(), "users/alice/folders/acme/items/markread-3"),
+          {
+            uid: "alice",
+            folderSubject: "Acme",
+            folderSlug: "acme",
+            date: "",
+            from: "",
+            urgency: "low",
+            keyPoints: [],
+            asks: [],
+            suggestedResponse: "",
+            pdfFilename: "",
+            createdAt: serverTimestamp(),
+          },
+        );
+      });
+
+      const bob = testEnv.authenticatedContext("bob").firestore();
+      await assertFails(
+        updateDoc(
+          doc(bob, "users/alice/folders/acme/items/markread-3"),
+          { readAt: serverTimestamp() },
+        ),
+      );
+    });
+  });
+
+  describe("folders — users/{uid}/folders/{slug} unread-count writes", () => {
+    const seedFolder = async (
+      env: typeof testEnv,
+      path: string,
+      data: Record<string, unknown> = {},
+    ) => {
+      const { setDoc, doc, serverTimestamp } = await import(
+        "firebase/firestore"
+      );
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), path), {
+          subject: "Acme",
+          subjectSlug: "acme",
+          folderPath: "/Acme",
+          pdfCount: 5,
+          hasSummaryCsv: false,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          unreadCount: 5,
+          ...data,
+        });
+      });
+    };
+
+    it("allows owner to decrement unreadCount", async () => {
+      const { assertSucceeds } = await import("@firebase/rules-unit-testing");
+      const { updateDoc, doc } = await import("firebase/firestore");
+
+      await seedFolder(testEnv, "users/alice/folders/acme");
+      const alice = testEnv.authenticatedContext("alice").firestore();
+      await assertSucceeds(
+        updateDoc(doc(alice, "users/alice/folders/acme"), { unreadCount: 4 }),
+      );
+    });
+
+    it("denies a folder update that touches a field other than unreadCount", async () => {
+      const { assertFails } = await import("@firebase/rules-unit-testing");
+      const { updateDoc, doc } = await import("firebase/firestore");
+
+      await seedFolder(testEnv, "users/alice/folders/acme");
+      const alice = testEnv.authenticatedContext("alice").firestore();
+      await assertFails(
+        updateDoc(doc(alice, "users/alice/folders/acme"), {
+          subject: "Renamed",
+        }),
+      );
+    });
+
+    it("denies a non-integer unreadCount", async () => {
+      const { assertFails } = await import("@firebase/rules-unit-testing");
+      const { updateDoc, doc } = await import("firebase/firestore");
+
+      await seedFolder(testEnv, "users/alice/folders/acme");
+      const alice = testEnv.authenticatedContext("alice").firestore();
+      await assertFails(
+        updateDoc(doc(alice, "users/alice/folders/acme"), {
+          unreadCount: "5",
+        }),
+      );
+    });
+
+    it("denies a negative unreadCount", async () => {
+      const { assertFails } = await import("@firebase/rules-unit-testing");
+      const { updateDoc, doc } = await import("firebase/firestore");
+
+      await seedFolder(testEnv, "users/alice/folders/acme");
+      const alice = testEnv.authenticatedContext("alice").firestore();
+      await assertFails(
+        updateDoc(doc(alice, "users/alice/folders/acme"), { unreadCount: -1 }),
+      );
+    });
+
+    it("denies a foreign uid from updating another user's folder", async () => {
+      const { assertFails } = await import("@firebase/rules-unit-testing");
+      const { updateDoc, doc } = await import("firebase/firestore");
+
+      await seedFolder(testEnv, "users/alice/folders/acme");
+      const bob = testEnv.authenticatedContext("bob").firestore();
+      await assertFails(
+        updateDoc(doc(bob, "users/alice/folders/acme"), { unreadCount: 0 }),
       );
     });
   });

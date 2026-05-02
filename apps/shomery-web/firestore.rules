@@ -91,7 +91,18 @@ service cloud.firestore {
 
       match /folders/{slug} {
         allow read: if isOwnerByPath(uid);
-        allow write: if false; // Python pipeline writes via admin SDK.
+
+        // Web client may decrement unreadCount when a user opens an item.
+        // Python pipeline is the only writer for everything else; rules
+        // confine the web write seam to that single field and require the
+        // value to be a non-negative integer.
+        allow update: if isOwnerByPath(uid)
+          && request.resource.data.diff(resource.data)
+               .affectedKeys().hasOnly(['unreadCount'])
+          && request.resource.data.unreadCount is int
+          && request.resource.data.unreadCount >= 0;
+
+        allow create, delete: if false; // Python pipeline owns lifecycle.
       }
 
       match /secrets/{secretId} {
@@ -134,7 +145,18 @@ service cloud.firestore {
     match /{path=**}/items/{itemId} {
       allow read: if request.auth != null
         && request.auth.uid == resource.data.uid;
-      allow write: if false; // Python pipeline writes via admin SDK.
+
+      // Web client may set readAt when the user first opens this item.
+      // Python pipeline is the only writer for every other field; the rule
+      // confines the web write seam to that single key. Ownership is gated
+      // on the existing doc's denormalized uid (path-variable-free, so the
+      // rule remains eligible for collection-group queries).
+      allow update: if request.auth != null
+        && request.auth.uid == resource.data.uid
+        && request.resource.data.diff(resource.data)
+             .affectedKeys().hasOnly(['readAt']);
+
+      allow create, delete: if false; // Python pipeline owns lifecycle.
     }
 
     match /{document=**} {

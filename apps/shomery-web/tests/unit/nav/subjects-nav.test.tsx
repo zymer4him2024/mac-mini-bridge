@@ -25,10 +25,14 @@ vi.mock("firebase/firestore", async () => {
     orderBy: () => ({}),
     limit: () => ({}),
     query: () => ({}),
+    doc: () => ({}),
+    serverTimestamp: () => ({}),
+    getDocs: vi.fn(async () => ({ docs: [] })),
     onSnapshot: (_q: unknown, cb: SnapshotCallback) => {
       callbacks.push(cb);
       return unsub;
     },
+    setDoc: vi.fn(async () => undefined),
   };
 });
 
@@ -41,12 +45,14 @@ vi.mock("@/i18n/routing", () => ({
     href,
     children,
     className,
+    "aria-label": ariaLabel,
   }: {
     href: string;
     children: ReactNode;
     className?: string;
+    "aria-label"?: string;
   }) => (
-    <a href={href} className={className}>
+    <a href={href} className={className} aria-label={ariaLabel}>
       {children}
     </a>
   ),
@@ -65,7 +71,12 @@ function withIntl(node: ReactNode) {
 
 const ts = () => Timestamp.fromDate(new Date());
 
-function makeFolder(subject: string, slug: string, count: number): Folder {
+function makeFolder(
+  subject: string,
+  slug: string,
+  count: number,
+  unreadCount?: number,
+): Folder {
   return {
     subject,
     subjectSlug: slug,
@@ -74,6 +85,7 @@ function makeFolder(subject: string, slug: string, count: number): Folder {
     hasSummaryCsv: false,
     createdAt: ts(),
     updatedAt: ts(),
+    ...(unreadCount !== undefined ? { unreadCount } : {}),
   };
 }
 
@@ -116,7 +128,7 @@ describe("SubjectsNav", () => {
 
   it("renders skeleton rows before any snapshot arrives", () => {
     const { container } = render(withIntl(<SubjectsNav uid="alice" />));
-    const skeletons = container.querySelectorAll('[aria-hidden="true"]');
+    const skeletons = container.querySelectorAll('ul[aria-label="Loading…"] > li');
     expect(skeletons.length).toBe(3);
   });
 
@@ -143,9 +155,13 @@ describe("SubjectsNav", () => {
       pushGroups([]);
     });
     expect(screen.getByText("Acme deal")).toBeInTheDocument();
-    expect(screen.getByText("5 items")).toBeInTheDocument();
     expect(screen.getByText("Q4 OKRs")).toBeInTheDocument();
-    expect(screen.getByText("1 item")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Acme deal, 5 items" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Q4 OKRs, 1 item" }),
+    ).toBeInTheDocument();
   });
 
   it("renders groups as collapsible parents above ungrouped subjects", () => {
@@ -166,7 +182,9 @@ describe("SubjectsNav", () => {
     expect(screen.getByText("Acme deal")).toBeInTheDocument();
     expect(screen.getByText("Q4 OKRs")).toBeInTheDocument();
     expect(screen.getByText("Misc")).toBeInTheDocument();
-    expect(screen.getByText("Subjects")).toBeInTheDocument();
+    // "Subjects" appears twice: once as the section header at the top of
+    // SubjectsNav, and once as the ungrouped subheading below the groups.
+    expect(screen.getAllByText("Subjects")).toHaveLength(2);
   });
 
   it("collapses a group on click and persists state in localStorage", () => {
@@ -202,5 +220,73 @@ describe("SubjectsNav", () => {
     });
     expect(screen.getByText("Acme deal")).toBeInTheDocument();
     expect(screen.queryByText("deleted-slug")).not.toBeInTheDocument();
+  });
+
+  it("renders the dual count and a brand-colored unread badge when unread > 0", () => {
+    render(withIntl(<SubjectsNav uid="alice" />));
+    act(() => {
+      pushFolders([makeFolder("Acme deal", "acme", 12, 3)]);
+      pushGroups([]);
+    });
+
+    const link = screen.getByRole("link", {
+      name: "Acme deal, 12 items, 3 unread",
+    });
+    expect(link).toBeInTheDocument();
+    const unread = link.querySelector(".text-brand");
+    expect(unread).not.toBeNull();
+    expect(unread).toHaveTextContent("3");
+  });
+
+  it("does not render the unread span when unread is zero", () => {
+    render(withIntl(<SubjectsNav uid="alice" />));
+    act(() => {
+      pushFolders([makeFolder("Acme deal", "acme", 5, 0)]);
+      pushGroups([]);
+    });
+
+    const link = screen.getByRole("link", { name: "Acme deal, 5 items" });
+    expect(link.querySelector(".text-brand")).toBeNull();
+  });
+
+  it("aggregates total and unread counts on a group parent row", () => {
+    render(withIntl(<SubjectsNav uid="alice" />));
+    act(() => {
+      pushFolders([
+        makeFolder("Acme deal", "acme", 10, 2),
+        makeFolder("Q4 OKRs", "okrs", 5, 1),
+      ]);
+      pushGroups([makeGroup("g1", "Clients", ["acme", "okrs"])]);
+    });
+
+    const groupBtn = screen.getByRole("button", { name: "Collapse Clients" });
+    expect(groupBtn).toHaveTextContent("15");
+    expect(groupBtn).toHaveTextContent("3");
+  });
+
+  it("toggles the new-group form and creates a group on submit", async () => {
+    const { setDoc } = await import("firebase/firestore");
+    render(withIntl(<SubjectsNav uid="alice" />));
+    act(() => {
+      pushFolders([]);
+      pushGroups([]);
+    });
+
+    expect(screen.queryByLabelText("Group name")).not.toBeInTheDocument();
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "New group" }));
+    });
+    const input = screen.getByLabelText("Group name");
+    expect(input).toBeInTheDocument();
+
+    act(() => {
+      fireEvent.change(input, { target: { value: "Investors" } });
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    });
+
+    expect(setDoc).toHaveBeenCalled();
+    expect(screen.queryByLabelText("Group name")).not.toBeInTheDocument();
   });
 });
