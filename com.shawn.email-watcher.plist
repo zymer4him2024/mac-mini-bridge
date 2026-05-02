@@ -6,18 +6,25 @@
     <string>com.shawn.email-watcher</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/shawnlee/telegram-bridge/venv/bin/python</string>
-        <string>/Users/shawnlee/telegram-bridge/watcher.py</string>
+        <string>/Users/shawnshlee/1_Claude_Code/email2ppt/venv/bin/python</string>
+        <string>/Users/shawnshlee/1_Claude_Code/email2ppt/watcher.py</string>
     </array>
     <key>WorkingDirectory</key>
-    <string>/Users/shawnlee/telegram-bridge</string>
+    <string>/Users/shawnshlee/1_Claude_Code/email2ppt</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>SHOMERY_DISABLE_TELEGRAM</key>
+        <string>1</string>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin</string>
+    </dict>
     <key>RunAtLoad</key>
     <true/>
     <key>StartInterval</key>
     <integer>120</integer>
     <key>StandardOutPath</key>
-    <string>/Users/shawnlee/telegram-bridge/watcher.stdout.log</string>
+    <string>/Users/shawnshlee/1_Claude_Code/email2ppt/watcher.stdout.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/shawnlee/telegram-bridge/watcher.stderr.log</string>
+    <string>/Users/shawnshlee/1_Claude_Code/email2ppt/watcher.stderr.log</string>
 </dict>
 </plist>

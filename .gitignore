@@ -10,6 +10,7 @@ priority_senders.txt
 watcher_state.json
 watcher_config.json
 firebase-service-account.json
+.watcher.lock
 
 # macOS / editor cruft
 .DS_Store

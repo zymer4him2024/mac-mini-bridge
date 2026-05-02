@@ -94,6 +94,10 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak  
 
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.1:8b")
+# Pilot kill switch: when set, the watcher skips the Telegram delivery but
+# still advances seen_ids so emails aren't reprocessed every tick. The web
+# app's in-app toast surface is the canonical pilot notification.
+DISABLE_TELEGRAM_ALERTS = os.environ.get("SHOMERY_DISABLE_TELEGRAM", "0") == "1"
 # Native /api/chat endpoint, derived from the OpenAI-compat URL by dropping
 # the trailing /v1. The OpenAI SDK doesn't pass `format` through to Ollama,
 # so json-mode summarization has to use the native endpoint directly.
@@ -857,7 +861,15 @@ def process_user(
                 # Mark seen only after Telegram confirms delivery; on failure
                 # the email gets re-processed next tick (idempotent: PDF +
                 # Firestore upserts overwrite). Costs one repeat LLM call.
-                alert_ok = send_document(uid, pdf_path, msg)
+                if DISABLE_TELEGRAM_ALERTS:
+                    log.info(
+                        "[%s] telegram disabled by SHOMERY_DISABLE_TELEGRAM; advancing seen for %s",
+                        uid,
+                        email["id"],
+                    )
+                    alert_ok = True
+                else:
+                    alert_ok = send_document(uid, pdf_path, msg)
                 if alert_ok:
                     seen_ids.append(email["id"])
                     seen.add(email["id"])
