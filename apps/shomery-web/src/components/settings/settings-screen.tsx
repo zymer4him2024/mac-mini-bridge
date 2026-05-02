@@ -18,6 +18,7 @@ import { subscribeWithRetry } from "@/lib/firebase/subscribe";
 import { useAuth } from "@/lib/firebase/auth";
 
 import { GroupsEditor } from "./groups-editor";
+import { InboxStatusInfo } from "./inbox-status-info";
 import {
   NotificationsEditor,
   type NotificationsValue,
@@ -103,8 +104,10 @@ export function SettingsScreen() {
       </header>
 
       <div className="space-y-6">
+        <InboxStatusInfo />
         <WatchedSendersEditor uid={user.uid} initial={watched} />
         <NotificationsEditor uid={user.uid} initial={notifications} />
+        <WhereToSaveInfo />
         <GroupsEditor uid={user.uid} folders={folders} />
         <PrivacyDataEditor uid={user.uid} />
       </div>

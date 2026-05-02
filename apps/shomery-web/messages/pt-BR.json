@@ -38,6 +38,9 @@
   "subjects": {
     "navEmpty": "Ainda não há assuntos — adicionaremos um quando o seu primeiro e-mail monitorado chegar.",
     "navLoading": "Carregando…",
+    "expandGroup": "Expandir {name}",
+    "collapseGroup": "Recolher {name}",
+    "ungroupedHeading": "Assuntos",
     "detailEmpty": "Ainda não há itens neste assunto.",
     "detailNotFound": "Assunto não encontrado.",
     "itemCount": "{count, plural, one {# item} other {# itens}}",
@@ -73,6 +76,17 @@
   "settings": {
     "title": "Configurações",
     "loading": "Carregando…",
+    "inbox": {
+      "label": "Caixa de entrada",
+      "helpText": "De onde o Shomery está lendo e quando o último resumo chegou.",
+      "connectedLabel": "Gmail",
+      "connectedAs": "Conectado como {email}",
+      "latestSummaryLabel": "Último resumo",
+      "latestSummary": "{when}",
+      "firstSummaryWaiting": "Monitorando — seu primeiro resumo chega em breve.",
+      "pendingLabel": "Configurando",
+      "pendingBody": "Estamos configurando o monitoramento do Gmail para a sua conta. Quando estiver pronto, o remetente aparecerá aqui."
+    },
     "watchedSenders": {
       "label": "Remetentes monitorados",
       "helpText": "Resumimos e-mails desses remetentes ou domínios. Use um endereço completo (alice@example.com) ou um domínio (@acme.com).",
@@ -124,6 +138,16 @@
       },
       "toggleOn": "Ativar {channel}",
       "toggleOff": "Desativar {channel}"
+    },
+    "whereToSave": {
+      "label": "Onde salvar",
+      "helpText": "Onde o Shomery guarda seus resumos hoje, e o que vem a seguir.",
+      "storageLabel": "Hoje",
+      "storage": "Cada resumo é salvo como um arquivo markdown no seu cofre privado do Shomery — Firebase Storage, restrito à sua conta. Só você pode ler.",
+      "pathLabel": "Caminho de armazenamento",
+      "pathTemplate": "summaries/[sua conta]/[assunto]/[id-do-email].md",
+      "driveLabel": "Em breve",
+      "drive": "A integração com o Google Drive está em análise. Quando a verificação for concluída, um seletor de pasta do Drive aparecerá aqui e os novos resumos serão salvos direto no seu Drive."
     },
     "groups": {
       "label": "Grupos de assuntos",

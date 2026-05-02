@@ -38,6 +38,9 @@
   "subjects": {
     "navEmpty": "No subjects yet — we'll add one when your first watched email arrives.",
     "navLoading": "Loading…",
+    "expandGroup": "Expand {name}",
+    "collapseGroup": "Collapse {name}",
+    "ungroupedHeading": "Subjects",
     "detailEmpty": "No items in this subject yet.",
     "detailNotFound": "Subject not found.",
     "itemCount": "{count, plural, one {# item} other {# items}}",
@@ -73,6 +76,17 @@
   "settings": {
     "title": "Settings",
     "loading": "Loading…",
+    "inbox": {
+      "label": "Inbox",
+      "helpText": "Where Shomery is reading from, and when the last summary landed.",
+      "connectedLabel": "Gmail",
+      "connectedAs": "Connected as {email}",
+      "latestSummaryLabel": "Latest summary",
+      "latestSummary": "{when}",
+      "firstSummaryWaiting": "Watching — your first summary will land here soon.",
+      "pendingLabel": "Setting up",
+      "pendingBody": "We're connecting Gmail watching for your account. Once it's wired, your sender will show here."
+    },
     "watchedSenders": {
       "label": "Watched senders",
       "helpText": "We summarize emails from these senders or domains. Use a full address (alice@example.com) or a domain (@acme.com).",
@@ -124,6 +138,16 @@
       },
       "toggleOn": "Enable {channel}",
       "toggleOff": "Disable {channel}"
+    },
+    "whereToSave": {
+      "label": "Where to save",
+      "helpText": "Where Shomery stores your summaries today, and what's next.",
+      "storageLabel": "Today",
+      "storage": "Every summary is saved as a markdown file in your private Shomery vault — Firebase Storage, scoped to your account. Only you can read it.",
+      "pathLabel": "Storage path",
+      "pathTemplate": "summaries/[your account]/[subject]/[email-id].md",
+      "driveLabel": "Coming next",
+      "drive": "Google Drive support is in review. Once verification clears, a Drive folder picker will appear here and new summaries will save straight to your Drive."
     },
     "groups": {
       "label": "Subject groups",
