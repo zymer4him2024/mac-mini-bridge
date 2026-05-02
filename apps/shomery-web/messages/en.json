@@ -8,6 +8,9 @@
     "microcopy": "No card required. 2-minute setup. Your data stays in your Drive."
   },
   "nav": {
+    "brand": "Shomery",
+    "brandMonogram": "S",
+    "brandHome": "Shomery home",
     "inbox": "Inbox",
     "subjectsHeader": "Subjects",
     "settings": "Settings",

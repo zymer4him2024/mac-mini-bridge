@@ -8,6 +8,9 @@
     "microcopy": "Sem cartão. Configuração em 2 minutos. Seus dados ficam no seu Drive."
   },
   "nav": {
+    "brand": "Shomery",
+    "brandMonogram": "S",
+    "brandHome": "Início do Shomery",
     "inbox": "Caixa de entrada",
     "subjectsHeader": "Assuntos",
     "settings": "Configurações",
