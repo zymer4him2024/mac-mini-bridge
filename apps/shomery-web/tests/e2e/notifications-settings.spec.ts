@@ -67,7 +67,7 @@ test.describe("settings → notifications flow", () => {
     "Requires Firebase Auth + Firestore emulators",
   );
 
-  test("a signed-in user can toggle digest, enable Telegram, save, and the values persist", async ({
+  test("a signed-in user can toggle digest, save, and the change persists; Telegram shows as Coming soon", async ({
     page,
     request,
   }) => {
@@ -87,15 +87,18 @@ test.describe("settings → notifications flow", () => {
     await page
       .getByRole("switch", { name: "Disable Email digest" })
       .click();
-    await page.getByRole("switch", { name: "Enable Telegram" }).click();
-    await page.getByLabel("Chat ID").fill("987654321");
 
     await page.getByRole("button", { name: "Save" }).last().click();
     await expect(page.getByText("Saved.")).toBeVisible();
 
     const stored = await readConfig(request, uid);
     expect(stored.fields?.digestEnabled?.booleanValue).toBe(false);
-    expect(stored.fields?.telegramEnabled?.booleanValue).toBe(true);
-    expect(stored.fields?.telegramChatId?.stringValue).toBe("987654321");
+
+    // Telegram is demoted to Coming soon during pilot — switch is disabled
+    // and there is no Chat ID input on the page.
+    await expect(
+      page.getByRole("switch", { name: "Telegram" }),
+    ).toBeDisabled();
+    await expect(page.getByLabel("Chat ID")).toHaveCount(0);
   });
 });

@@ -34,7 +34,12 @@
       "pendingLabel": "📄 {filename}",
       "linkLabel": "📄 {filename} ↗"
     },
-    "readFullLabel": "Read full →"
+    "readFullLabel": "Read full →",
+    "toast": {
+      "regionLabel": "New email notifications",
+      "newEmailLabel": "New email",
+      "dismissLabel": "Dismiss"
+    }
   },
   "subjects": {
     "subjectsHeader": "Subjects",

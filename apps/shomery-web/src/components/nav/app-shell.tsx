@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { Inbox, LogOut, MessageCircle, Settings as SettingsIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { FeedToastStack } from "@/components/feed/feed-toast";
 import { Link, usePathname } from "@/i18n/routing";
 import { signOutOfShomery } from "@/lib/firebase/auth";
 
@@ -161,6 +162,7 @@ export function AppShell({
         </div>
       </aside>
       <div className="min-w-0 flex-1">{children}</div>
+      <FeedToastStack uid={user.uid} />
     </div>
   );
 }

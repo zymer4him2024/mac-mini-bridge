@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { doc, setDoc } from "firebase/firestore";
 import { useTranslations } from "next-intl";
@@ -17,10 +17,15 @@ export interface NotificationsValue {
   telegramChatId: string;
 }
 
-const COMING_SOON_CHANNELS = ["kakaoTalk", "whatsApp", "sms"] as const;
+const COMING_SOON_CHANNELS = [
+  "kakaoTalk",
+  "whatsApp",
+  "telegram",
+  "sms",
+] as const;
 type ComingSoonChannel = (typeof COMING_SOON_CHANNELS)[number];
 
-const CHANNEL_DOT_CLASS: Record<ComingSoonChannel | "emailDigest" | "telegram", string> = {
+const CHANNEL_DOT_CLASS: Record<ComingSoonChannel | "emailDigest", string> = {
   emailDigest: "bg-soft",
   kakaoTalk: "bg-[#FEE500]",
   whatsApp: "bg-[#25D366]",
@@ -38,31 +43,16 @@ export function NotificationsEditor({
   const t = useTranslations("settings.notifications");
   const tChannels = useTranslations("settings.notifications.channels");
   const [digestEnabled, setDigestEnabled] = useState(initial.digestEnabled);
-  const [telegramEnabled, setTelegramEnabled] = useState(initial.telegramEnabled);
-  const [telegramChatId, setTelegramChatId] = useState(initial.telegramChatId);
   const [saveState, setSaveState] = useState<SaveState>("idle");
 
-  const dirty = useMemo(
-    () =>
-      digestEnabled !== initial.digestEnabled ||
-      telegramEnabled !== initial.telegramEnabled ||
-      telegramChatId.trim() !== initial.telegramChatId.trim(),
-    [digestEnabled, telegramEnabled, telegramChatId, initial],
-  );
-
-  const telegramInvalid = telegramEnabled && telegramChatId.trim().length === 0;
+  const dirty = digestEnabled !== initial.digestEnabled;
 
   const onSave = async () => {
-    if (telegramInvalid) return;
     setSaveState("saving");
     try {
       await setDoc(
         doc(getFirebaseDb(), `users/${uid}/config/main`),
-        {
-          digestEnabled,
-          telegramEnabled,
-          telegramChatId: telegramChatId.trim(),
-        },
+        { digestEnabled },
         { merge: true },
       );
       setSaveState("saved");
@@ -119,60 +109,7 @@ export function NotificationsEditor({
 
         <ComingSoonRow channel="kakaoTalk" />
         <ComingSoonRow channel="whatsApp" />
-
-        <li className="py-3">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex flex-1 items-start gap-3">
-              <span
-                aria-hidden="true"
-                className={`mt-1 inline-block h-2.5 w-2.5 rounded-full ${CHANNEL_DOT_CLASS.telegram}`}
-              />
-              <div className="flex-1">
-                <p className="text-sm font-bold text-ink">
-                  {tChannels("telegram.label")}
-                </p>
-              </div>
-            </div>
-            <Switch
-              checked={telegramEnabled}
-              onCheckedChange={(next) => {
-                setTelegramEnabled(next);
-                markDirty();
-              }}
-              aria-label={t(telegramEnabled ? "toggleOff" : "toggleOn", {
-                channel: tChannels("telegram.label"),
-              })}
-            />
-          </div>
-          {telegramEnabled ? (
-            <div className="ml-5 mt-3">
-              <label
-                htmlFor="telegram-chat-id"
-                className="block text-xs text-soft"
-              >
-                {tChannels("telegram.chatIdLabel")}
-              </label>
-              <input
-                id="telegram-chat-id"
-                type="text"
-                value={telegramChatId}
-                onChange={(e) => {
-                  setTelegramChatId(e.target.value);
-                  markDirty();
-                }}
-                placeholder={tChannels("telegram.chatIdPlaceholder")}
-                maxLength={64}
-                className="mt-1 w-full rounded border border-soft/20 bg-paper px-3 py-2 text-sm text-ink placeholder:text-soft focus:border-brand focus:outline-none"
-              />
-              {telegramInvalid ? (
-                <p role="alert" className="mt-1 text-xs text-warn">
-                  {t("telegramRequiresChatId")}
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-        </li>
-
+        <ComingSoonRow channel="telegram" />
         <ComingSoonRow channel="sms" />
       </ul>
 
@@ -180,7 +117,7 @@ export function NotificationsEditor({
         <Button
           type="button"
           onClick={onSave}
-          disabled={!dirty || telegramInvalid || saveState === "saving"}
+          disabled={!dirty || saveState === "saving"}
         >
           {saveState === "saving" ? t("savingAction") : t("saveAction")}
         </Button>

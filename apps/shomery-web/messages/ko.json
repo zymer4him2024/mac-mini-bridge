@@ -34,7 +34,12 @@
       "pendingLabel": "📄 {filename}",
       "linkLabel": "📄 {filename} ↗"
     },
-    "readFullLabel": "전체 보기 →"
+    "readFullLabel": "전체 보기 →",
+    "toast": {
+      "regionLabel": "새 이메일 알림",
+      "newEmailLabel": "새 이메일",
+      "dismissLabel": "닫기"
+    }
   },
   "subjects": {
     "subjectsHeader": "주제",
