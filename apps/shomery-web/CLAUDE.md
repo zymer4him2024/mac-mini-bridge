@@ -181,9 +181,20 @@ type UserConfig = {
   summaryAsksMax: number;
   intervalMinutes: number;
 };
+
+// users/{uid}/groups/{groupId} — virtual subject groupings, owned by the web app.
+// Membership is a flat list of folder slugs. A subject belongs to zero or one groups;
+// the invariant is enforced client-side in the useGroups hook (Firestore rules can't express it).
+type Group = {
+  groupId: string;
+  name: string;
+  subjectSlugs: string[];
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+};
 ```
 
-Deferred to the PRs that introduce them: a `Subject`/`Group` model (today, "subject" is implemented as a folder; explicit subjects + groups will be added when the Subjects PR ships), `ChannelConfig` (added when the second notification channel beyond Telegram lands — see *Core screens* §5), markdown artifacts at `summaries/{uid}/{subject_slug}/{email_id}.md` (added when the watcher gains markdown emission — see *Critical decisions* #1).
+Deferred to the PRs that introduce them: an explicit `Subject` model (today, "subject" is implemented as a `Folder`; an explicit `Subject` type arrives when the Subjects PR ships), `ChannelConfig` (added when the second notification channel beyond Telegram lands — see *Core screens* §5), markdown artifacts at `summaries/{uid}/{subject_slug}/{email_id}.md` (added when the watcher gains markdown emission — see *Critical decisions* #1).
 
 ---
 

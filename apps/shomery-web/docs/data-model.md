@@ -62,11 +62,22 @@ type UserConfig = {
   summaryAsksMax: number;
   intervalMinutes: number;
 };
+
+// users/{uid}/groups/{groupId} — virtual subject groupings, owned by the web app.
+// A subject (folder slug) belongs to zero or one groups. Grouping does not
+// move emails or rewrite the folder docs — only the parent reference changes.
+type Group = {
+  groupId: string;
+  name: string;
+  subjectSlugs: string[];               // membership list; "in zero or one groups" enforced client-side
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+};
 ```
 
 ## Deferred models (added when their PR ships)
 
-- **`Subject` / `Group`** — today, "subject" is implemented as a `Folder`. Explicit `Subject` and `Group` types arrive when the Subjects + Groups PR ships. `Group` shape per the project memory: `{ group_id, name, subject_slugs[] }` — emails never move between folders, only the parent reference changes.
+- **`Subject`** — today, "subject" is implemented as a `Folder`. An explicit `Subject` type arrives when the Subjects PR ships. (`Group` now lives in *Current types* — see above.)
 - **`ChannelConfig`** — added when the second notification channel beyond Telegram lands. Until then, the relevant fields live on `UserConfig` (`digestEnabled`, `telegramEnabled`, `telegramChatId`).
 - **Markdown artifact metadata** — once the watcher emits `.md`, each `FolderItem` carries `markdownStoragePath`. Pre-Drive-verification this points at Firebase Storage (`summaries/{uid}/{slug}/{itemId}.md`). Post-Drive, it becomes a `drive://...` URI. The web read goes through `getMarkdown(item)` — single switch point.
 
@@ -79,6 +90,7 @@ type UserConfig = {
 ## Writing rules
 
 - The web client writes only what's explicitly allowed by Firestore rules. The five identity fields on `users/{uid}` (plus `onboardingCompletedAt` after onboarding) and the documented allowlist on `users/{uid}/config/main` are the only paths the web SDK touches.
+- `users/{uid}/groups/{groupId}` is owned by the web app. Rules require `groupId == request.resource.data.groupId`, validate `name` (non-empty, ≤50 chars) and `subjectSlugs` (string array, ≤100 entries), and gate read/write on `request.auth.uid == uid`. The "subject in zero or one groups" invariant is enforced client-side in the `useGroups` hook via batched cross-group writes — Firestore rules cannot express it.
 - The `gmail.*` subtree on `users/{uid}` and the `folders/*` collection are owned by the Python pipeline (admin SDK). Rules forbid client writes.
 - Cloud Functions running with admin SDK can write more broadly but should still go through `firestore_*.py` wrappers when interacting with pipeline-written collections (KMS, audit, redaction).
 

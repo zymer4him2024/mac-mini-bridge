@@ -40,8 +40,18 @@ def grounded_answer(
     hits: list[dict],
     *,
     style_hint: str = "short replies, not essays",
+    llm_client: OpenAI | None = None,
+    llm_model: str | None = None,
 ) -> str:
-    """NotebookLM-style: answer ONLY from retrieved context, refuse otherwise."""
+    """NotebookLM-style: answer ONLY from retrieved context, refuse otherwise.
+
+    `llm_client` and `llm_model` default to the module-level Ollama setup.
+    Pass an alternative `OpenAI`-compatible client + model name to route
+    through a different provider (rag_service does this to keep providers
+    swappable via LLM_PROVIDER env var).
+    """
+    client = llm_client or _llm
+    model = llm_model or OLLAMA_MODEL
     blocks = []
     for i, h in enumerate(hits, 1):
         sender = h.get("senderName") or "(unknown)"
@@ -61,8 +71,8 @@ def grounded_answer(
         f"Folder: {subject}\n\nContext:\n{context}\n\nQuestion: {question}\n\nAnswer:"
     )
     try:
-        resp = _llm.chat.completions.create(
-            model=OLLAMA_MODEL,
+        resp = client.chat.completions.create(
+            model=model,
             messages=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
@@ -86,6 +96,9 @@ def answer_question(
     distance_threshold: float = RAG_DISTANCE_THRESHOLD,
     style_hint: str = "short replies, not essays",
     error_reply: str = DEFAULT_ERROR_REPLY,
+    refusal_suffix: str = "Try /folders to switch.",
+    llm_client: OpenAI | None = None,
+    llm_model: str | None = None,
 ) -> tuple[str, dict]:
     """Resolve scope, retrieve, ground. Returns (reply_text, debug_meta).
 
@@ -95,6 +108,13 @@ def answer_question(
       - `error_reply` on infrastructure failure (embed/search/LLM)
 
     `debug_meta` carries hits/relevant/top_dist for the caller's log line.
+
+    `refusal_suffix` is appended to the refusal message — defaults to the
+    Telegram-flavored "/folders" hint; the web rag_service overrides it
+    with empty string since web has its own subject switcher.
+
+    `llm_client` and `llm_model` route the LLM call through a different
+    provider when set; default keeps the module-level Ollama client.
     """
     try:
         qvec = embed_text(question)
@@ -118,10 +138,20 @@ def answer_question(
     }
 
     if not relevant:
+        suffix = f" {refusal_suffix}" if refusal_suffix else ""
         return (
-            f"I don't have anything in folder '{subject[:60]}' about that. "
-            f"Try /folders to switch.",
+            f"I don't have anything in folder '{subject[:60]}' about that.{suffix}",
             meta,
         )
 
-    return grounded_answer(question, subject, relevant, style_hint=style_hint), meta
+    return (
+        grounded_answer(
+            question,
+            subject,
+            relevant,
+            style_hint=style_hint,
+            llm_client=llm_client,
+            llm_model=llm_model,
+        ),
+        meta,
+    )
