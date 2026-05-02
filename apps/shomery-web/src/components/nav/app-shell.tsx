@@ -2,9 +2,10 @@
 
 import type { ReactNode } from "react";
 
-import { Inbox, LogOut, Settings as SettingsIcon } from "lucide-react";
+import { Inbox, LogOut, MessageCircle, Settings as SettingsIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { FeedToastStack } from "@/components/feed/feed-toast";
 import { Link, usePathname } from "@/i18n/routing";
 import { signOutOfShomery } from "@/lib/firebase/auth";
 
@@ -136,6 +137,13 @@ export function AppShell({
               {t("inbox")}
             </NavLink>
             <NavLink
+              href="/ask"
+              active={pathname === "/ask"}
+              icon={MessageCircle}
+            >
+              {t("ask")}
+            </NavLink>
+            <NavLink
               href="/settings"
               active={pathname === "/settings"}
               icon={SettingsIcon}
@@ -145,12 +153,7 @@ export function AppShell({
           </nav>
 
           <div className="mt-6">
-            <p className="px-3 text-xs font-bold uppercase tracking-wider text-soft">
-              {t("subjectsHeader")}
-            </p>
-            <div className="mt-2">
-              <SubjectsNav uid={user.uid} />
-            </div>
+            <SubjectsNav uid={user.uid} />
           </div>
         </div>
 
@@ -159,6 +162,7 @@ export function AppShell({
         </div>
       </aside>
       <div className="min-w-0 flex-1">{children}</div>
+      <FeedToastStack uid={user.uid} />
     </div>
   );
 }

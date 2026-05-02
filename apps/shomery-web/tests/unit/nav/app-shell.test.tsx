@@ -63,7 +63,7 @@ describe("AppShell", () => {
     usePathnameMock.mockReturnValue("/feed");
   });
 
-  it("renders the brand mark, nav, Subjects header, SubjectsNav, and children", () => {
+  it("renders the brand mark, nav, SubjectsNav, and children", () => {
     render(
       withIntl(
         <AppShell user={baseUser}>
@@ -73,7 +73,8 @@ describe("AppShell", () => {
     );
     expect(screen.getByLabelText("Shomery home")).toBeInTheDocument();
     expect(screen.getByText("Inbox")).toBeInTheDocument();
-    expect(screen.getByText("Subjects")).toBeInTheDocument();
+    expect(screen.getByText("Ask")).toBeInTheDocument();
+    expect(screen.getByText("Settings")).toBeInTheDocument();
     expect(screen.getByTestId("subjects-nav")).toHaveTextContent("alice");
     expect(screen.getByTestId("content")).toBeInTheDocument();
   });

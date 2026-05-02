@@ -46,7 +46,7 @@ describe("NotificationsEditor", () => {
     setDocMock.mockResolvedValue(undefined);
   });
 
-  it("renders all five channel rows", () => {
+  it("renders all five channel rows with Telegram as Coming soon", () => {
     render(
       withIntl(<NotificationsEditor uid="alice" initial={DEFAULT_INITIAL} />),
     );
@@ -55,7 +55,11 @@ describe("NotificationsEditor", () => {
     expect(screen.getByText("WhatsApp")).toBeInTheDocument();
     expect(screen.getByText("Telegram")).toBeInTheDocument();
     expect(screen.getByText("SMS")).toBeInTheDocument();
-    expect(screen.getAllByText("Coming soon")).toHaveLength(3);
+    expect(screen.getAllByText("Coming soon")).toHaveLength(4);
+    expect(screen.queryByLabelText("Chat ID")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("switch", { name: "Telegram" }),
+    ).toBeDisabled();
   });
 
   it("disables the Save button until something changes", () => {
@@ -65,7 +69,7 @@ describe("NotificationsEditor", () => {
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
   });
 
-  it("toggles the Email digest switch and persists the change", async () => {
+  it("toggles the Email digest switch and persists only digestEnabled", async () => {
     render(
       withIntl(<NotificationsEditor uid="alice" initial={DEFAULT_INITIAL} />),
     );
@@ -76,54 +80,10 @@ describe("NotificationsEditor", () => {
     await waitFor(() => expect(setDocMock).toHaveBeenCalledOnce());
     expect(setDocMock).toHaveBeenCalledWith(
       expect.anything(),
-      {
-        digestEnabled: false,
-        telegramEnabled: false,
-        telegramChatId: "",
-      },
+      { digestEnabled: false },
       { merge: true },
     );
     expect(await screen.findByText("Saved.")).toBeInTheDocument();
-  });
-
-  it("enables Telegram, accepts a chat id, and persists both fields", async () => {
-    render(
-      withIntl(<NotificationsEditor uid="alice" initial={DEFAULT_INITIAL} />),
-    );
-    await userEvent.click(
-      screen.getByRole("switch", { name: "Enable Telegram" }),
-    );
-    await userEvent.type(
-      screen.getByLabelText("Chat ID"),
-      "987654321",
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(setDocMock).toHaveBeenCalledOnce());
-    expect(setDocMock).toHaveBeenCalledWith(
-      expect.anything(),
-      {
-        digestEnabled: true,
-        telegramEnabled: true,
-        telegramChatId: "987654321",
-      },
-      { merge: true },
-    );
-  });
-
-  it("blocks save and surfaces a hint when Telegram is on but chat id is empty", async () => {
-    render(
-      withIntl(<NotificationsEditor uid="alice" initial={DEFAULT_INITIAL} />),
-    );
-    await userEvent.click(
-      screen.getByRole("switch", { name: "Enable Telegram" }),
-    );
-    expect(
-      await screen.findByText(
-        "Add a Telegram chat ID to enable this channel.",
-      ),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
-    expect(setDocMock).not.toHaveBeenCalled();
   });
 
   it("surfaces an inline error when setDoc rejects", async () => {

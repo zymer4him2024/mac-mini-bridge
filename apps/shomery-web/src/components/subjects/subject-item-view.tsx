@@ -12,6 +12,7 @@ import { PdfLink } from "@/components/feed/pdf-link";
 import { getFirebaseDb } from "@/lib/firebase/client";
 import { useAuth } from "@/lib/firebase/auth";
 import { formatRelativeTime } from "@/lib/intl/relative-time";
+import { markItemRead } from "@/lib/mark-read";
 
 type ItemState = "loading" | "missing" | FolderItem;
 
@@ -40,6 +41,15 @@ export function SubjectItemView({
     });
     return unsub;
   }, [status, user, slug, itemId]);
+
+  // Mark the item as read on first open. Fire-and-forget: a transient
+  // failure (offline, race with another tab) just leaves it unread, which
+  // self-heals on the next open.
+  useEffect(() => {
+    if (status !== "signed-in" || !user) return;
+    if (typeof item !== "object" || item.readAt) return;
+    markItemRead(user.uid, slug, itemId).catch(() => {});
+  }, [status, user, slug, itemId, item]);
 
   if (item === "loading") {
     return (

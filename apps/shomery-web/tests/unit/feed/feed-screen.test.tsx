@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
+import { useEffect } from "react";
 
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -12,8 +13,21 @@ vi.mock("@/lib/firebase/auth", () => ({
   useAuth: () => useAuthMock(),
 }));
 
+let lastUnreadHook: ((n: number) => void) | null = null;
+
 vi.mock("@/components/feed/feed-list", () => ({
-  FeedList: ({ uid }: { uid: string }) => <div data-testid="feed-list">{uid}</div>,
+  FeedList: ({
+    uid,
+    onUnreadCount,
+  }: {
+    uid: string;
+    onUnreadCount?: (n: number) => void;
+  }) => {
+    useEffect(() => {
+      lastUnreadHook = onUnreadCount ?? null;
+    }, [onUnreadCount]);
+    return <div data-testid="feed-list">{uid}</div>;
+  },
 }));
 
 import { FeedScreen } from "@/components/feed/feed-screen";
@@ -29,6 +43,7 @@ function withIntl(node: ReactNode) {
 describe("FeedScreen", () => {
   beforeEach(() => {
     useAuthMock.mockReset();
+    lastUnreadHook = null;
   });
 
   it("renders a loading message while auth status is resolving", () => {
@@ -50,5 +65,30 @@ describe("FeedScreen", () => {
     });
     render(withIntl(<FeedScreen />));
     expect(screen.getByTestId("feed-list")).toHaveTextContent("alice");
+  });
+
+  it("hides the processed subtitle when unread count is zero", () => {
+    useAuthMock.mockReturnValue({
+      user: { uid: "alice" },
+      status: "signed-in",
+    });
+    render(withIntl(<FeedScreen />));
+    expect(screen.queryByText(/processed/i)).not.toBeInTheDocument();
+  });
+
+  it("renders the processed subtitle when FeedList reports unread > 0", () => {
+    useAuthMock.mockReturnValue({
+      user: { uid: "alice" },
+      status: "signed-in",
+    });
+    render(withIntl(<FeedScreen />));
+    act(() => {
+      lastUnreadHook?.(5);
+    });
+    expect(
+      screen.getByText(
+        "5 new emails processed · saved to your private vault.",
+      ),
+    ).toBeInTheDocument();
   });
 });

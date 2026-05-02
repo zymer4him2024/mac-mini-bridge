@@ -24,7 +24,13 @@ interface FeedRow {
   item: FolderItem;
 }
 
-export function FeedList({ uid }: { uid: string }) {
+export function FeedList({
+  uid,
+  onUnreadCount,
+}: {
+  uid: string;
+  onUnreadCount?: (n: number) => void;
+}) {
   const t = useTranslations("feed");
   const [rows, setRows] = useState<FeedRow[] | null>(null);
 
@@ -41,8 +47,9 @@ export function FeedList({ uid }: { uid: string }) {
         item: d.data() as FolderItem,
       }));
       setRows(next);
+      onUnreadCount?.(next.filter((r) => !r.item.readAt).length);
     });
-  }, [uid]);
+  }, [uid, onUnreadCount]);
 
   if (rows === null) {
     return <p className="text-sm text-soft">{t("loading")}</p>;
@@ -57,9 +64,9 @@ export function FeedList({ uid }: { uid: string }) {
   }
 
   return (
-    <ul className="space-y-4">
+    <ul className="divide-y divide-soft/10">
       {rows.map(({ id, item }) => (
-        <li key={id}>
+        <li key={id} className="py-4 first:pt-0 last:pb-0">
           <EmailCard item={item} itemId={id} />
         </li>
       ))}

@@ -12,12 +12,13 @@
     "brandMonogram": "S",
     "brandHome": "Início do Shomery",
     "inbox": "Caixa de entrada",
-    "subjectsHeader": "Assuntos",
+    "ask": "Perguntar",
     "settings": "Configurações",
     "signOut": "Sair"
   },
   "feed": {
     "title": "Caixa de entrada",
+    "processedSubtitle": "{count, plural, one {# novo e-mail processado · salvo} other {# novos e-mails processados · salvos}} no seu cofre privado.",
     "loading": "Carregando…",
     "empty": "Estamos atentos ao seu primeiro e-mail.",
     "unknownSender": "Remetente desconhecido",
@@ -33,9 +34,15 @@
       "pendingLabel": "📄 {filename}",
       "linkLabel": "📄 {filename} ↗"
     },
-    "readFullLabel": "Ler tudo →"
+    "readFullLabel": "Ler tudo →",
+    "toast": {
+      "regionLabel": "Notificações de novos e-mails",
+      "newEmailLabel": "Novo e-mail",
+      "dismissLabel": "Fechar"
+    }
   },
   "subjects": {
+    "subjectsHeader": "Assuntos",
     "navEmpty": "Ainda não há assuntos — adicionaremos um quando o seu primeiro e-mail monitorado chegar.",
     "navLoading": "Carregando…",
     "expandGroup": "Expandir {name}",
@@ -44,6 +51,11 @@
     "detailEmpty": "Ainda não há itens neste assunto.",
     "detailNotFound": "Assunto não encontrado.",
     "itemCount": "{count, plural, one {# item} other {# itens}}",
+    "itemCountWithUnread": "{count, plural, one {# item} other {# itens}}, {unread} não lidos",
+    "newGroupCta": "Novo grupo",
+    "newGroupShort": "Novo grupo",
+    "newGroupPlaceholder": "Nome do grupo",
+    "newGroupSubmit": "Criar",
     "backToSubject": "← Voltar ao assunto",
     "askCta": "Perguntar sobre este assunto",
     "ask": {
@@ -65,6 +77,11 @@
       "errorGeneric": "Não conseguimos contatar o assistente. Tente novamente.",
       "metaLabel": "{hits} candidatos · {relevant} relevantes"
     }
+  },
+  "askLanding": {
+    "title": "Pergunte qualquer coisa na sua caixa de entrada.",
+    "body": "Escolha um assunto na barra lateral e toque em Perguntar sobre este assunto. Perguntas entre assuntos e globais chegam em breve.",
+    "hint": "As respostas se baseiam apenas no assunto que você escolher. Recusamos o que não pudermos fundamentar."
   },
   "markdown": {
     "loading": "Carregando…",

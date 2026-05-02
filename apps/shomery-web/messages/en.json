@@ -12,12 +12,13 @@
     "brandMonogram": "S",
     "brandHome": "Shomery home",
     "inbox": "Inbox",
-    "subjectsHeader": "Subjects",
+    "ask": "Ask",
     "settings": "Settings",
     "signOut": "Sign out"
   },
   "feed": {
     "title": "Inbox",
+    "processedSubtitle": "{count, plural, one {# new email processed} other {# new emails processed}} · saved to your private vault.",
     "loading": "Loading…",
     "empty": "We're watching for your first email.",
     "unknownSender": "Unknown sender",
@@ -33,9 +34,15 @@
       "pendingLabel": "📄 {filename}",
       "linkLabel": "📄 {filename} ↗"
     },
-    "readFullLabel": "Read full →"
+    "readFullLabel": "Read full →",
+    "toast": {
+      "regionLabel": "New email notifications",
+      "newEmailLabel": "New email",
+      "dismissLabel": "Dismiss"
+    }
   },
   "subjects": {
+    "subjectsHeader": "Subjects",
     "navEmpty": "No subjects yet — we'll add one when your first watched email arrives.",
     "navLoading": "Loading…",
     "expandGroup": "Expand {name}",
@@ -44,6 +51,11 @@
     "detailEmpty": "No items in this subject yet.",
     "detailNotFound": "Subject not found.",
     "itemCount": "{count, plural, one {# item} other {# items}}",
+    "itemCountWithUnread": "{count, plural, one {# item} other {# items}}, {unread} unread",
+    "newGroupCta": "New group",
+    "newGroupShort": "New group",
+    "newGroupPlaceholder": "Group name",
+    "newGroupSubmit": "Create",
     "backToSubject": "← Back to subject",
     "askCta": "Ask this subject",
     "ask": {
@@ -65,6 +77,11 @@
       "errorGeneric": "We couldn't reach the assistant. Please try again.",
       "metaLabel": "Found {hits} candidates · {relevant} relevant"
     }
+  },
+  "askLanding": {
+    "title": "Ask anything in your inbox.",
+    "body": "Pick a subject from the sidebar and tap Ask this subject to start. Cross-subject and global Ask are coming soon.",
+    "hint": "Answers are grounded only in the subject you choose. We refuse what we can't ground."
   },
   "markdown": {
     "loading": "Loading…",

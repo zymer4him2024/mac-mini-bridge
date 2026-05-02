@@ -23,6 +23,13 @@ export interface Folder {
   createdAt: Timestamp;
   updatedAt: Timestamp;
   summaryCsvStoragePath?: string;
+  /**
+   * Count of items in this folder the user has not yet opened. Web client
+   * decrements this when a user opens an item for the first time. Python
+   * pipeline is expected to bump it on item write (out of scope for the
+   * web app); until that lands the value stays at zero for new folders.
+   */
+  unreadCount?: number;
 }
 
 /** users/{uid}/folders/{subjectSlug}/items/{itemId} */
@@ -49,6 +56,8 @@ export interface FolderItem {
    * `getMarkdown()` helper is the single switch point.
    */
   markdownStoragePath?: string;
+  /** Set by the web client when the user first opens this item. */
+  readAt?: Timestamp;
 }
 
 /**
